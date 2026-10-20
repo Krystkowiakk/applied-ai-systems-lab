@@ -1,0 +1,159 @@
+"""OpenAI Chat Completions adapter.
+
+Also serves any OpenAI-compatible server (LM Studio, Ollama, vLLM) through ``base_url``,
+which is how the labs run against a local model without an API key.
+"""
+
+from __future__ import annotations
+
+import base64
+import json
+import os
+from collections.abc import Sequence
+from typing import Any
+
+from ..core.messages import Message, ModelTurn, StopReason, ToolCall, ToolSpec, Usage
+from ..core.model import ModelError
+
+
+class OpenAIChatModel:
+    def __init__(
+        self,
+        model: str,
+        *,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        reasoning_effort: str | None = None,
+        temperature: float | None = None,
+        token_param: str = "max_completion_tokens",
+        max_retries: int = 3,
+        timeout: float = 180.0,
+        label: str | None = None,
+    ) -> None:
+        try:
+            import openai
+        except ImportError as exc:  # pragma: no cover - depends on the environment
+            raise ModelError("Install the OpenAI SDK: pip install 'applied-ai-systems-lab[openai]'") from exc
+        self._openai = openai
+        key = api_key or os.environ.get("OPENAI_API_KEY")
+        if key is None and base_url is None:
+            raise ModelError("OPENAI_API_KEY is not set (or pass --base-url for a local server).")
+        self._client = openai.OpenAI(
+            api_key=key or "local", base_url=base_url, max_retries=max_retries, timeout=timeout
+        )
+        self.model = model
+        self.reasoning_effort = reasoning_effort
+        self.temperature = temperature  # left unset by default: reasoning models reject it
+        self.token_param = token_param
+        self._label = label or model
+
+    @property
+    def name(self) -> str:
+        return self._label
+
+    def complete(
+        self,
+        *,
+        system: str,
+        messages: Sequence[Message],
+        tools: Sequence[ToolSpec],
+        max_output_tokens: int = 4096,
+    ) -> ModelTurn:
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": [{"role": "system", "content": system}, *to_openai_messages(messages)],
+            self.token_param: max_output_tokens,
+        }
+        if tools:
+            payload["tools"] = [
+                {
+                    "type": "function",
+                    "function": {"name": t.name, "description": t.description, "parameters": t.parameters},
+                }
+                for t in tools
+            ]
+        if self.reasoning_effort:
+            payload["reasoning_effort"] = self.reasoning_effort
+        if self.temperature is not None:
+            payload["temperature"] = self.temperature
+        try:
+            response = self._client.chat.completions.create(**payload)
+        except self._openai.APIError as exc:
+            raise ModelError(f"{type(exc).__name__}: {exc}") from exc
+        return parse_openai_response(response)
+
+
+def to_openai_messages(messages: Sequence[Message]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for m in messages:
+        if m.role == "user":
+            if m.images:
+                parts: list[dict[str, Any]] = [{"type": "text", "text": m.content}]
+                for img in m.images:
+                    data = base64.b64encode(img.data).decode("ascii")
+                    parts.append({"type": "image_url", "image_url": {"url": f"data:{img.media_type};base64,{data}"}})
+                out.append({"role": "user", "content": parts})
+            else:
+                out.append({"role": "user", "content": m.content})
+        elif m.role == "assistant":
+            entry: dict[str, Any] = {"role": "assistant", "content": m.content or None}
+            if m.tool_calls:
+                entry["tool_calls"] = [
+                    {
+                        "id": c.id,
+                        "type": "function",
+                        "function": {"name": c.name, "arguments": json.dumps(c.arguments, ensure_ascii=False)},
+                    }
+                    for c in m.tool_calls
+                ]
+            out.append(entry)
+        else:
+            out.append({"role": "tool", "tool_call_id": m.tool_call_id, "content": m.content})
+    return out
+
+
+def parse_openai_response(response: Any) -> ModelTurn:
+    choice = response.choices[0]
+    message = choice.message
+    calls: list[ToolCall] = []
+    for tc in message.tool_calls or []:
+        function = getattr(tc, "function", None)
+        if function is None:  # non-function tool types are not used here
+            continue
+        raw = function.arguments or "{}"
+        try:
+            parsed = json.loads(raw)
+            error = None if isinstance(parsed, dict) else "arguments must be a JSON object"
+        except json.JSONDecodeError as exc:
+            parsed, error = {}, str(exc)
+        calls.append(
+            ToolCall(
+                id=tc.id, name=function.name, arguments=parsed if isinstance(parsed, dict) else {}, parse_error=error
+            )
+        )
+
+    usage = Usage()
+    if response.usage is not None:
+        details = getattr(response.usage, "prompt_tokens_details", None)
+        usage = Usage(
+            input_tokens=response.usage.prompt_tokens or 0,
+            output_tokens=response.usage.completion_tokens or 0,
+            cached_input_tokens=(getattr(details, "cached_tokens", 0) or 0) if details else 0,
+        )
+
+    finish = choice.finish_reason
+    stop: StopReason
+    if getattr(message, "refusal", None) or finish == "content_filter":
+        stop = "refusal"
+    elif calls:
+        stop = "tool_use"
+    elif finish == "length":
+        stop = "max_tokens"
+    elif finish == "stop":
+        stop = "end_turn"
+    else:
+        stop = "other"
+    text = message.content or getattr(message, "refusal", None) or ""
+    return ModelTurn(
+        text=text, tool_calls=calls, usage=usage, stop_reason=stop, model=getattr(response, "model", "") or ""
+    )

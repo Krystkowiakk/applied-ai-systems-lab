@@ -1,0 +1,215 @@
+"""Command line: list labs, run one, benchmark many, read a trace."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from collections.abc import Callable, Sequence
+from dataclasses import asdict
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+from .core.bench import summarize, to_markdown
+from .core.lab import EnvOptions, Lab
+from .core.model import ChatModel, ModelError
+from .core.runner import RunReport, run_once
+from .core.trace import read_trace, render_trace
+from .labs import LABS, get_lab
+from .providers import PROVIDERS, make_model
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="aisyslab", description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    sub.add_parser("list", help="List the labs.")
+    show = sub.add_parser("show", help="Describe one lab.")
+    show.add_argument("lab", choices=list(LABS))
+
+    run = sub.add_parser("run", help="Run one lab once.")
+    run.add_argument("lab", choices=list(LABS))
+    run.add_argument("--solver", choices=["baseline", "agent"], default="baseline")
+    run.add_argument("--seed", type=int, default=0)
+    run.add_argument("--quiet", action="store_true", help="Do not stream trace events.")
+    _shared(run)
+
+    bench = sub.add_parser("bench", help="Run labs over several seeds and compare solvers.")
+    bench.add_argument("--labs", default="all", help="Comma-separated lab ids, or 'all'.")
+    bench.add_argument("--seeds", default="0-4", help="Range '0-4' or list '0,3,7'.")
+    bench.add_argument("--solvers", default="baseline", help="'baseline', 'agent' or 'baseline,agent'.")
+    bench.add_argument("--out", type=Path, default=Path("runs"), help="Where to write the JSON and Markdown results.")
+    bench.add_argument("--price-in", type=float, default=None, help="USD per million input tokens, for a cost column.")
+    bench.add_argument("--price-out", type=float, default=None, help="USD per million output tokens.")
+    _shared(bench)
+
+    trace = sub.add_parser("trace", help="Print a JSONL trace as a timeline.")
+    trace.add_argument("path", type=Path)
+
+    args = parser.parse_args(argv)
+    if args.command == "list":
+        for lab in LABS.values():
+            print(f"{lab.id:<20} {lab.title}")
+        return 0
+    if args.command == "show":
+        _describe(get_lab(args.lab))
+        return 0
+    if args.command == "trace":
+        print(render_trace(read_trace(args.path)))
+        return 0
+    try:
+        if args.command == "run":
+            return _run(args)
+        return _bench(args)
+    except ModelError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+
+def _shared(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--provider", choices=PROVIDERS, default=None, help="Model provider for the agent solver.")
+    p.add_argument("--model", default=None, help="Model id; each provider has a default.")
+    p.add_argument(
+        "--base-url", default=None, help="OpenAI-compatible server, e.g. http://localhost:11434/v1 for Ollama."
+    )
+    p.add_argument("--effort", default=None, help="Reasoning effort passed to the provider (e.g. low, medium, high).")
+    p.add_argument("--flaky", type=float, default=0.0, help="Probability of a transient 503/429 on every API call.")
+    p.add_argument(
+        "--embedder",
+        choices=["trigram", "openai", "local"],
+        default="trigram",
+        help="Vector ranking for retrieval labs.",
+    )
+    p.add_argument("--embedding-model", default=None, help="Embedding model id for --embedder openai/local.")
+    p.add_argument(
+        "--operator",
+        choices=["auto", "ask"],
+        default="auto",
+        help="Who approves irreversible actions: a simulated careful operator, or you.",
+    )
+    p.add_argument("--trace-dir", type=Path, default=Path("runs/traces"))
+
+
+def _model(args: argparse.Namespace, solvers: Sequence[str]) -> ChatModel | None:
+    if "agent" not in solvers:
+        return None
+    if args.provider is None:
+        raise ModelError("The agent solver needs --provider (openai, anthropic or local).")
+    return make_model(args.provider, args.model, base_url=args.base_url, effort=args.effort)
+
+
+def _options(args: argparse.Namespace) -> EnvOptions:
+    embedder = None
+    if args.embedder == "openai":
+        from .core.retrieval import OpenAICompatibleEmbedder
+
+        embedder = OpenAICompatibleEmbedder(args.embedding_model or "text-embedding-3-small")
+    elif args.embedder == "local":
+        from .core.retrieval import OpenAICompatibleEmbedder
+        from .providers import DEFAULT_LOCAL_URL
+
+        embedder = OpenAICompatibleEmbedder(
+            args.embedding_model or "text-embedding-nomic-embed-text-v1.5", base_url=args.base_url or DEFAULT_LOCAL_URL
+        )
+    return EnvOptions(flaky=args.flaky, embedder=embedder)
+
+
+def _configure(args: argparse.Namespace) -> Callable[[Any], None] | None:
+    if args.operator != "ask":
+        return None
+
+    def ask(request: dict[str, Any]) -> tuple[bool, str]:
+        print("\n--- approval requested ---")
+        print(json.dumps(request, indent=2, ensure_ascii=False, default=str))
+        answer = input("Approve? [y/N] ").strip().lower()
+        return (True, "Approved by the operator.") if answer == "y" else (False, "Denied by the operator.")
+
+    def configure(env: Any) -> None:
+        if hasattr(env, "operator"):
+            env.operator = ask
+
+    return configure
+
+
+def _run(args: argparse.Namespace) -> int:
+    lab = get_lab(args.lab)
+    model = _model(args, [args.solver])
+    report = run_once(
+        lab,
+        args.solver,
+        args.seed,
+        model=model,
+        options=_options(args),
+        trace_dir=args.trace_dir,
+        echo=None if args.quiet else print,
+        configure_env=_configure(args),
+    )
+    _print_report(report)
+    return 0 if report.accepted else 1
+
+
+def _bench(args: argparse.Namespace) -> int:
+    labs = list(LABS.values()) if args.labs == "all" else [get_lab(i.strip()) for i in args.labs.split(",")]
+    solvers = [s.strip() for s in args.solvers.split(",")]
+    model = _model(args, solvers)
+    options = _options(args)
+    reports: list[RunReport] = []
+    for lab in labs:
+        for solver in solvers:
+            for seed in _seeds(args.seeds):
+                report = run_once(
+                    lab,
+                    solver,
+                    seed,
+                    model=model,
+                    options=options,
+                    trace_dir=args.trace_dir,
+                    configure_env=_configure(args),
+                )
+                reports.append(report)
+                mark = "ok " if report.accepted else "-- "
+                print(
+                    f"{mark}{lab.id:<20} {solver:<8} seed {seed:<3} {report.status:<14} {report.tool_calls:>3} tool calls  {report.input_tokens:>8,} tok in"
+                )
+    table = to_markdown(summarize(reports), price_in=args.price_in, price_out=args.price_out)
+    print("\n" + table)
+    args.out.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    (args.out / f"bench-{stamp}.json").write_text(json.dumps([asdict(r) for r in reports], indent=2), encoding="utf-8")
+    (args.out / f"bench-{stamp}.md").write_text(table + "\n", encoding="utf-8")
+    print(f"\nSaved {args.out / f'bench-{stamp}.json'} and .md")
+    return 0
+
+
+def _seeds(spec: str) -> list[int]:
+    if "-" in spec:
+        lo, hi = spec.split("-", 1)
+        return list(range(int(lo), int(hi) + 1))
+    return [int(s) for s in spec.split(",") if s.strip()]
+
+
+def _describe(lab: Lab) -> None:
+    print(f"{lab.title}\n\n{lab.summary}\n\nTechniques:")
+    for t in lab.techniques:
+        print(f"  - {t}")
+    if lab.origin:
+        print(f"\nOrigin: {lab.origin}")
+
+
+def _print_report(r: RunReport) -> None:
+    verdict = "ACCEPTED" if r.accepted else "not accepted"
+    score = f", score {r.score:.2f}" if r.score is not None and not r.accepted else ""
+    print(f"\n{r.lab} / {r.solver} / seed {r.seed}: {verdict}{score} ({r.status})")
+    print(
+        f"  submissions {r.submissions}, API calls {r.api_calls}, tool calls {r.tool_calls}, model calls {r.model_calls}, retries {r.retries}"
+    )
+    if r.model_calls:
+        print(f"  tokens in {r.input_tokens:,} (cached {r.cached_input_tokens:,}), out {r.output_tokens:,}")
+    print(f"  {r.seconds:.2f}s, trace: {r.trace_path}")
+    if r.error:
+        print(f"  error: {r.error}")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

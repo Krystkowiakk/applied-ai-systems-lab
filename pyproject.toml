@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "applied-ai-systems-lab"
+version = "0.1.0"
+description = "Simulated operations environments, each solved twice: by an LLM agent and by plain code, under the same verifier."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+authors = [{ name = "Krystian Krystkowiak" }]
+keywords = ["llm", "agents", "evaluation", "tool-use", "rag", "ai-engineering"]
+dependencies = ["pydantic>=2.6", "pillow>=10.0"]
+
+[project.optional-dependencies]
+openai = ["openai>=1.40"]
+anthropic = ["anthropic>=1.0"]
+all = ["openai>=1.40", "anthropic>=1.0"]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.10"]
+
+[project.scripts]
+aisyslab = "aisyslab.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+aisyslab = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["E501", "RUF001", "RUF002", "RUF003", "SIM905"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_unused_ignores = true
+ignore_missing_imports = true
