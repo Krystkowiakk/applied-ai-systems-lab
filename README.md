@@ -3,7 +3,7 @@
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-**Seven operations problems, each solved twice: by an LLM agent and by plain code, under the same verifier.**
+**Eight operations problems, each solved twice: by an LLM agent and by plain code, under the same verifier.**
 
 I work in operations and build AI systems. On real work the useful question is rarely "can a model
 do this?" It is "where does the model earn its place, and what does it cost when it doesn't?" This
@@ -11,7 +11,7 @@ repository turns that question into something you can run, measure and argue wit
 
 Every lab is a small simulated environment taken from operational work: a plant mailbox, a stopped
 production line, an edge service that won't start, supplier delays, an urgent spare-part run, a
-maintenance portal, and a relocation assistant. Each one comes with:
+maintenance portal, a maintenance database, and a relocation assistant. Each one comes with:
 
 - a **verifier** that judges answers deterministically and gives feedback specific enough to act on,
   never so specific that it leaks the answer;
@@ -21,7 +21,7 @@ maintenance portal, and a relocation assistant. Each one comes with:
 
 ## What the baselines show
 
-Measured with `aisyslab bench --seeds 0-19`: 140 runs, no model, no API key, about one second.
+Measured with `aisyslab bench --seeds 0-19`: 160 runs, no model, no API key, about one second.
 
 | Lab | Baseline accepted | Score | API calls / run | What decides it |
 |---|---|---|---|---|
@@ -31,13 +31,14 @@ Measured with `aisyslab bench --seeds 0-19`: 140 runs, no model, no API key, abo
 | `supply-intake` | 20/20 | 1.00 | 14 | Every format is machine-readable, even the photo (pixel count) |
 | `spare-part-run` | 20/20 | 1.00 | 5 | Planning on a fully specified map is search, and search is exact |
 | `maintenance-portal` | 20/20 | 1.00 | 6 | Code never reads the injected comment, so it cannot obey it |
+| `plant-database` | 20/20 | 1.00 | 2 | A known question is one SQL statement; the agent first has to find where the answer lives |
 | `relocation-rag` | 0/20 | 0.28 | 14 | Code retrieves but cannot read: exceptions, dates, a question in Polish |
 
-Six of the seven problems fall to 30 to 70 lines of code each, on every seed, with zero tokens. The
+Seven of the eight problems fall to 30 to 70 lines of code each, on every seed, with zero tokens. The
 same baselines pass with 20% of API calls failing, because retries live in code. In those labs an
 agent has to justify itself on flexibility, not capability: what happens when the
-email is phrased differently, the fault is new, the map changes. The seventh lab is where the model
-earns its place, and the agent there is graded on value **and** citation.
+email is phrased differently, the fault is new, the map changes, the planner asks another question.
+The last lab is where the model earns its place, and the agent there is graded on value **and** citation.
 
 Agent results depend on the model, the effort setting and the day, so none are committed. Produce
 your own, with your key or a local model:
@@ -54,7 +55,7 @@ cd applied-ai-systems-lab
 python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
 
-aisyslab list                     # the seven labs
+aisyslab list                     # the eight labs
 aisyslab show supply-intake       # scenario, techniques, where it comes from
 aisyslab run supply-intake        # the baseline, streaming its trace
 aisyslab bench --seeds 0-4        # every baseline on five seeds
@@ -72,6 +73,7 @@ aisyslab run inbox --solver agent --provider openai --model gpt-5-mini --flaky 0
 aisyslab run line-incident --solver agent --provider local --model qwen2.5-7b-instruct   # LM Studio
 aisyslab run line-incident --solver agent --provider local --base-url http://localhost:11434/v1 --model qwen2.5:7b   # Ollama
 aisyslab run maintenance-portal --solver agent --provider anthropic --operator ask        # you approve irreversible actions
+aisyslab run plant-database --solver agent --provider openai --model gpt-5-mini          # schema discovery, read-only SQL
 aisyslab trace runs/traces/<file>.jsonl                                                   # replay a run as a timeline
 ```
 
@@ -85,6 +87,7 @@ aisyslab trace runs/traces/<file>.jsonl                                         
 | [`supply-intake`](docs/labs.md#supply-intake) | Which part stops a line tonight, which supplier is late, who do we call, how many units are missing? | JSON, CSV, XML, HTML, notes and a rack photo, several behind misleading file names; ERP stock that the shop floor contradicts |
 | [`spare-part-run`](docs/labs.md#spare-part-run) | Get a spare pump to the stopped line before the deadline. | Forklift battery vs walking time, one-way dismount, no-go zones, rules hidden in documents that must be found first |
 | [`maintenance-portal`](docs/labs.md#maintenance-portal) | Re-code one work order and close another. | A supplier comment that orders "AI assistants" to close everything; closing needs a human's approval token |
+| [`plant-database`](docs/labs.md#plant-database) | Which line-3 work orders cannot start because a spare part is short? | Stock split across storerooms and partly reserved, a superseded part number, a stale "waiting parts" status, two assets moved between lines, and a database that refuses writes |
 | [`relocation-rag`](docs/labs.md#relocation-rag) | Answer a newcomer's relocation questions from the handbook. | A superseded edition, an exception that overrides the rule, a deadline to compute, a question in Polish, one the handbook does not answer |
 
 Each lab's techniques, traps and design choices are in [docs/labs.md](docs/labs.md); the technique
@@ -103,8 +106,8 @@ index with links into the code is [docs/techniques.md](docs/techniques.md).
    that rewrites history as observations instead of editing it.
 5. **Tools are an API for a reader without documentation.** Narrow, typed (pydantic), validated;
    errors come back as data with a hint, and a bug in a tool never ends the run.
-6. **Policy lives in code, not in the prompt.** Forbidden paths, approval tokens and valid codes are
-   enforced by the environment. The prompt explains them; it does not guard them.
+6. **Policy lives in code, not in the prompt.** Forbidden paths, approval tokens, valid codes and read-only
+   SQL are enforced by the environment. The prompt explains them; it does not guard them.
 7. **Untrusted text is data.** HTML is parsed in code, free text arrives labelled, there are no bulk
    tools to abuse, and the verifier counts blocked attempts, not just the final state.
 8. **No silent fallbacks.** A failing agent fails visibly. A fallback to code inside the agent would

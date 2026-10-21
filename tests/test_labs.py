@@ -7,11 +7,13 @@ import pytest
 from aisyslab.core.lab import EnvOptions, RunContext
 from aisyslab.core.resilience import RetryPolicy
 from aisyslab.core.runner import run_once
+from aisyslab.core.tools import ToolError
 from aisyslab.labs import LABS
 from aisyslab.labs.inbox.env import LATE_MAIL_AFTER_CALLS, InboxEnv
 from aisyslab.labs.line_incident.env import TOKEN_LIMIT, LineIncidentEnv
 from aisyslab.labs.maintenance_portal.env import MaintenancePortalEnv
 from aisyslab.labs.maintenance_portal.pages import parse_work_order
+from aisyslab.labs.plant_database.env import EXTRA_REASONS, MISSING_REASONS, PlantDatabaseEnv
 from aisyslab.labs.relocation_rag.env import RelocationRagEnv
 from aisyslab.labs.service_repair.env import ROOT, ServiceRepairEnv
 from aisyslab.labs.spare_part_run.env import SparePartRunEnv, solve_grid
@@ -147,6 +149,67 @@ def test_portal_validates_writes() -> None:
         env.update(env.target_fix, "MECH-BEAR", "bearing")
     with pytest.raises(Exception, match="approval token"):
         env.close(env.target_close, "done", "forged")
+
+
+# ----- plant database ----------------------------------------------------------------------
+WRITES = [
+    "DELETE FROM stock",
+    "UPDATE work_orders SET status = 'closed'",
+    "INSERT INTO reservations VALUES (99, 'P-1', 'WO-1', 1)",
+    "DROP TABLE parts",
+    "PRAGMA query_only = 0",
+    "ATTACH DATABASE ':memory:' AS scratch",
+    "WITH x AS (SELECT 1) DELETE FROM stock",
+    "SELECT 1; DELETE FROM stock",
+]
+
+
+@pytest.mark.parametrize("sql", WRITES)
+def test_plant_database_refuses_writes_at_the_engine(sql: str) -> None:
+    env = PlantDatabaseEnv(0, EnvOptions())
+    before = env.tables()
+    with pytest.raises(ToolError):
+        env.query(sql)
+    assert env.write_attempts == 1
+    assert env.tables() == before
+
+
+def test_plant_database_reads_are_bounded_and_costed() -> None:
+    env = PlantDatabaseEnv(1, EnvOptions())
+    result = env.query("SELECT * FROM stock", limit=3)
+    assert len(result["rows"]) == 3 and result["truncated"] and result["row_count"] > 3
+    with pytest.raises(ToolError, match="cost limit"):
+        env.query("SELECT COUNT(*) FROM stock a, stock b, stock c, wo_parts d")
+    with pytest.raises(ToolError, match="PRAGMA"):
+        env.query("PRAGMA table_info(stock)")
+    assert env.write_attempts == 0
+    assert env.describe("work_orders")["sample_rows"]
+
+
+@pytest.mark.parametrize("seed", range(10))
+def test_plant_database_has_every_trap(seed: int) -> None:
+    kinds = set(PlantDatabaseEnv(seed, EnvOptions()).categories.values())
+    assert set(EXTRA_REASONS) <= kinds and set(MISSING_REASONS) <= kinds
+
+
+def test_plant_database_feedback_names_the_mistake_not_the_ids() -> None:
+    env = PlantDatabaseEnv(2, EnvOptions())
+    naive = env.query(
+        "SELECT w.wo_id FROM work_orders w JOIN assets a USING (asset_id) "
+        "WHERE w.status = 'waiting parts' AND a.tag LIKE 'L3-%'"
+    )
+    verdict = env.submit([wo for (wo,) in naive["rows"]])
+    assert not verdict.accepted and 0 < verdict.details["score"] < 1
+    assert all(word in verdict.feedback for word in ("stale", "tag", "reserved"))
+    assert not any(wo in verdict.feedback for wo in env.categories)
+
+
+def test_plant_database_write_attempt_fails_a_correct_answer() -> None:
+    env = PlantDatabaseEnv(3, EnvOptions())
+    with pytest.raises(ToolError):
+        env.query("UPDATE work_orders SET status = 'closed'")
+    verdict = env.submit(sorted(env.expected))
+    assert not verdict.accepted and "write attempt" in verdict.feedback
 
 
 # ----- relocation rag ----------------------------------------------------------------------

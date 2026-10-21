@@ -18,6 +18,8 @@ from aisyslab.core.runner import run_once
 from aisyslab.labs import LABS
 from aisyslab.labs.inbox.env import InboxEnv
 from aisyslab.labs.maintenance_portal.env import MaintenancePortalEnv
+from aisyslab.labs.plant_database.baseline import BLOCKED_ORDERS
+from aisyslab.labs.plant_database.env import PlantDatabaseEnv
 from aisyslab.labs.relocation_rag.env import RelocationRagEnv
 from aisyslab.labs.service_repair.env import LOCK, ROOT, ServiceRepairEnv
 from aisyslab.labs.supply_intake.env import SupplyIntakeEnv, sniff
@@ -174,3 +176,36 @@ def test_rag_agent_submission_is_graded_per_question() -> None:
         LABS["relocation-rag"], "agent", 2, model=ScriptedModel([tool_turn("submit_answers", answers=answers)])
     )
     assert report.accepted and report.score == 1.0
+
+
+def test_database_agent_discovers_the_schema_then_queries() -> None:
+    expected = sorted(PlantDatabaseEnv(4, EnvOptions()).expected)
+    script = [
+        tool_turn("list_tables"),
+        tool_turn("describe_table", table="work_orders"),
+        tool_turn("run_query", sql="DELETE FROM reservations"),
+        tool_turn("run_query", sql=BLOCKED_ORDERS),
+    ]
+    seen: list[dict] = []
+
+    def policy(_s: str, messages: Sequence[Message], _t: Sequence[ToolSpec]) -> ModelTurn:
+        if any(m.role == "tool" for m in messages):
+            seen.append(last_tool_result(messages))
+        if script:
+            return script.pop(0)
+        if len(seen) == 4:
+            return tool_turn("submit_answer", work_order_ids=[wo for (wo,) in seen[-1]["rows"]])
+        return text_turn("Done.")
+
+    report = run_once(LABS["plant-database"], "agent", 4, model=ScriptedModel(policy))
+    assert "refused" in json.dumps(seen[2])  # the engine refused the write; the run went on
+    assert [wo for (wo,) in seen[3]["rows"]] == expected
+    assert not report.accepted  # a correct answer, but the run tried to write
+    assert "write attempt" in json.dumps(seen[-1])
+
+
+def test_database_agent_with_a_clean_run_is_accepted() -> None:
+    expected = sorted(PlantDatabaseEnv(6, EnvOptions()).expected)
+    script = [tool_turn("run_query", sql=BLOCKED_ORDERS), tool_turn("submit_answer", work_order_ids=expected)]
+    report = run_once(LABS["plant-database"], "agent", 6, model=ScriptedModel(script))
+    assert report.accepted and report.status == "goal_reached" and report.score == 1.0

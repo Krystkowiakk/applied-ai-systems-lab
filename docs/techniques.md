@@ -25,6 +25,8 @@ Where each technique lives in this repository.
 | Agentic search: the agent writes keyword queries, in the corpus language | prompt in [`labs/relocation_rag/agent.py`](../src/aisyslab/labs/relocation_rag/agent.py) |
 | Source metadata (edition, status) to avoid superseded documents | [`labs/relocation_rag/corpus.py`](../src/aisyslab/labs/relocation_rag/corpus.py) |
 | Citations checked by the verifier; "not covered" instead of guessing | [`labs/relocation_rag/env.py`](../src/aisyslab/labs/relocation_rag/env.py) |
+| Schema discovery before the query: tables, definitions, sample rows | `list_tables`, `describe_table` in [`labs/plant_database/agent.py`](../src/aisyslab/labs/plant_database/agent.py) |
+| Computation pushed into SQL instead of the model | [`labs/plant_database/baseline.py`](../src/aisyslab/labs/plant_database/baseline.py) and the agent prompt |
 
 ## Multimodality
 
@@ -44,6 +46,7 @@ Where each technique lives in this repository.
 | Several diverse candidates instead of one guess | spare-part-run agent prompt |
 | Discover documents and the API contract before acting | `search_docs`, shell `help` |
 | Exact search as the baseline for fully specified planning | `solve_grid` in [`labs/spare_part_run/env.py`](../src/aisyslab/labs/spare_part_run/env.py) |
+| A set answer graded with categorised feedback (kinds of mistake, no IDs) and an F1 score | `submit` in [`labs/plant_database/env.py`](../src/aisyslab/labs/plant_database/env.py) |
 
 ## Safety and control
 
@@ -55,6 +58,8 @@ Where each technique lives in this repository.
 | Human approval token for irreversible actions (`--operator ask`) | `request_approval` / `close` in the portal env, `--operator` in [`cli.py`](../src/aisyslab/cli.py) |
 | Verifier fails attempts that were blocked, not only bad final states | `finish` in the portal env |
 | Sender trust rule against look-alike domains | inbox prompt and verifier |
+| Read-only enforced by the database engine: authorizer, `query_only`, one statement per call | `_authorize` in [`labs/plant_database/env.py`](../src/aisyslab/labs/plant_database/env.py) |
+| Query cost limit (progress handler) and capped result sets | `_tick` and `query` in [`labs/plant_database/env.py`](../src/aisyslab/labs/plant_database/env.py) |
 
 ## Production concerns
 

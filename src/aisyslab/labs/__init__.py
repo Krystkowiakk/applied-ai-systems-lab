@@ -6,6 +6,7 @@ from ..core.lab import Lab
 from .inbox import LAB as INBOX
 from .line_incident import LAB as LINE_INCIDENT
 from .maintenance_portal import LAB as MAINTENANCE_PORTAL
+from .plant_database import LAB as PLANT_DATABASE
 from .relocation_rag import LAB as RELOCATION_RAG
 from .service_repair import LAB as SERVICE_REPAIR
 from .spare_part_run import LAB as SPARE_PART_RUN
@@ -13,7 +14,16 @@ from .supply_intake import LAB as SUPPLY_INTAKE
 
 LABS: dict[str, Lab] = {
     lab.id: lab
-    for lab in (INBOX, LINE_INCIDENT, SERVICE_REPAIR, SUPPLY_INTAKE, SPARE_PART_RUN, MAINTENANCE_PORTAL, RELOCATION_RAG)
+    for lab in (
+        INBOX,
+        LINE_INCIDENT,
+        SERVICE_REPAIR,
+        SUPPLY_INTAKE,
+        SPARE_PART_RUN,
+        MAINTENANCE_PORTAL,
+        PLANT_DATABASE,
+        RELOCATION_RAG,
+    )
 }
 
 
