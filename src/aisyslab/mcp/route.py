@@ -3,7 +3,9 @@
 ``via_mcp`` serves the lab's toolbox from an in-process MCP server and hands the agent the
 host's merged, prefixed tools, so every call crosses the protocol exactly as it would for a
 remote server. ``discover`` replaces the list of tools with ``search_tools`` and
-``call_tool``. The environment, verifier and budgets stay the same, so results stay comparable.
+``call_tool``. ``promptless`` drops the system prompt, so a run measures how well the tool names,
+descriptions and schemas alone guide a model. The environment, verifier and budgets stay the
+same, so results stay comparable.
 """
 
 from __future__ import annotations
@@ -21,9 +23,9 @@ def server_prefix(lab: Lab) -> str:
     return lab.id.replace("-", "_")
 
 
-def routed(lab: Lab, *, via_mcp: bool = False, discover: bool = False) -> Lab:
-    """A copy of the lab whose agent gets its tools through MCP and/or discovery."""
-    if not (via_mcp or discover):
+def routed(lab: Lab, *, via_mcp: bool = False, discover: bool = False, promptless: bool = False) -> Lab:
+    """A copy of the lab whose agent gets its tools through MCP and/or discovery, or no prompt."""
+    if not (via_mcp or discover or promptless):
         return lab
     spec = lab.spec
     if spec is None:
@@ -46,7 +48,7 @@ def routed(lab: Lab, *, via_mcp: bool = False, discover: bool = False) -> Lab:
                 box = discovery_toolbox(box)
             return run_agent(
                 model=model,
-                system=spec.system,
+                system="" if promptless else spec.system,
                 task=spec.task(env),
                 toolbox=box,
                 tracer=ctx.tracer,

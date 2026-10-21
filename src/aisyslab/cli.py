@@ -47,6 +47,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     trace = sub.add_parser("trace", help="Print a JSONL trace as a timeline.")
     trace.add_argument("path", type=Path)
 
+    ev = sub.add_parser("eval", help="Evaluate the ticket-triage prompt: score, optimise, calibrate the judge.")
+    ev.add_argument("what", choices=["triage", "optimize", "judge"])
+    ev.add_argument("--seed", type=int, default=0, help="Dataset seed.")
+    ev.add_argument("--models", default=None, help="Comma-separated model ids to compare (with --provider).")
+    ev.add_argument("--optimizer-model", default=None, help="Stronger model that rewrites the prompt.")
+    ev.add_argument("--judge", action="store_true", help="Add the model judge to the graders.")
+    ev.add_argument("--rounds", type=int, default=5)
+    ev.add_argument("--out", type=Path, default=Path("runs/evals"))
+    ev.add_argument("--provider", choices=PROVIDERS, default=None, help="Without it, offline stand-ins are used.")
+    ev.add_argument("--model", default=None)
+    ev.add_argument("--base-url", default=None)
+    ev.add_argument("--effort", default=None)
+
     serve = sub.add_parser("mcp", help="Serve a lab's tools as an MCP server (stdio or streamable HTTP).")
     serve.add_argument("lab", choices=list(LABS))
     serve.add_argument("--seed", type=int, default=0)
@@ -67,6 +80,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "mcp":
         return _serve_mcp(args)
+    if args.command == "eval":
+        from .evals.cli import run as run_eval_command
+
+        return run_eval_command(args)
     try:
         if args.command == "run":
             return _run(args)
@@ -104,12 +121,15 @@ def _shared(p: argparse.ArgumentParser) -> None:
     p.add_argument(
         "--discover", action="store_true", help="Give the agent search_tools and call_tool instead of the tool list."
     )
+    p.add_argument(
+        "--promptless", action="store_true", help="Run the agent without its system prompt (a tool-description eval)."
+    )
 
 
 def _lab(args: argparse.Namespace, lab_id: str) -> Lab:
     from .mcp.route import routed
 
-    return routed(get_lab(lab_id), via_mcp=args.via_mcp, discover=args.discover)
+    return routed(get_lab(lab_id), via_mcp=args.via_mcp, discover=args.discover, promptless=args.promptless)
 
 
 def _serve_mcp(args: argparse.Namespace) -> int:
