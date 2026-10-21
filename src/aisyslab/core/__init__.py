@@ -1,6 +1,6 @@
 """Provider-neutral harness: messages, tools, the agent loop, tracing and retries."""
 
-from .agent import AgentConfig, AgentRun, run_agent
+from .agent import AgentConfig, AgentRun, AgentSpec, run_agent
 from .lab import EnvOptions, Lab, LabEnv, RunContext
 from .messages import ImagePart, Message, ModelTurn, ToolCall, ToolSpec, Usage
 from .model import ChatModel, ModelError, ScriptedModel, text_turn, tool_turn
@@ -14,6 +14,7 @@ from .verdict import Verdict
 __all__ = [
     "AgentConfig",
     "AgentRun",
+    "AgentSpec",
     "ChatModel",
     "EnvOptions",
     "ImagePart",

@@ -17,8 +17,9 @@ dependencies = ["pydantic>=2.6", "pillow>=10.0"]
 [project.optional-dependencies]
 openai = ["openai>=1.40"]
 anthropic = ["anthropic>=1.0"]
-all = ["openai>=1.40", "anthropic>=1.0"]
-dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.10"]
+mcp = ["mcp>=2.3", "uvicorn>=0.30"]
+all = ["openai>=1.40", "anthropic>=1.0", "mcp>=2.3", "uvicorn>=0.30"]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.10", "mcp>=2.3", "uvicorn>=0.30"]
 
 [project.scripts]
 aisyslab = "aisyslab.cli:main"

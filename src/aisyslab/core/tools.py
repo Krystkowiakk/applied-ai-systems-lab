@@ -29,15 +29,34 @@ class ToolError(Exception):
         self.hint = hint
         self.data = data
 
+    @classmethod
+    def from_payload(cls, text: str) -> ToolError:
+        """Rebuild the error from the JSON payload a toolbox (or an MCP server) returned."""
+        try:
+            payload = json.loads(text)
+        except ValueError:
+            return cls(text)
+        if isinstance(payload, dict) and "error" in payload:
+            data = dict(payload)
+            message = str(data.pop("error"))
+            hint = data.pop("hint", None)
+            return cls(message, hint=hint, **data)
+        return cls(text)
+
 
 @dataclass(frozen=True)
 class Tool:
     name: str
     description: str
-    args: type[BaseModel]
+    args: type[BaseModel] | None
     handler: Callable[[Any], Any]
+    # A raw JSON schema instead of a pydantic model, for tools defined elsewhere (an MCP
+    # server validates its own arguments); the handler then receives the argument dict.
+    schema: dict[str, Any] | None = None
 
     def spec(self) -> ToolSpec:
+        if self.args is None:
+            return ToolSpec(self.name, self.description, self.schema or {"type": "object", "properties": {}})
         return ToolSpec(self.name, self.description, _clean_schema(_inline_refs(self.args.model_json_schema())))
 
 
@@ -90,7 +109,7 @@ class Toolbox:
         if call.parse_error:
             return done(_error(f"Arguments were not valid JSON: {call.parse_error}"), error=True)
         try:
-            args = tool.args.model_validate(call.arguments)
+            args = call.arguments if tool.args is None else tool.args.model_validate(call.arguments)
         except ValidationError as exc:
             problems = "; ".join(
                 f"{'.'.join(str(p) for p in err['loc']) or '(root)'}: {err['msg']}" for err in exc.errors()

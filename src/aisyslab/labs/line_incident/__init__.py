@@ -20,5 +20,6 @@ LAB = Lab(
     make_env=LineIncidentEnv,
     baseline=baseline.solve,
     agent=agent.solve,
+    spec=agent.SPEC,
     agent_config=AgentConfig(max_steps=24, max_tool_calls=40),
 )

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from ...core.agent import AgentRun, run_agent
+from ...core.agent import AgentSpec
 from ...core.lab import RunContext
 from ...core.model import ChatModel
 from ...core.tools import NoArgs, Tool, Toolbox
@@ -47,8 +47,8 @@ class AnswerArgs(BaseModel):
     change_id: str = Field(description="CHG-123456")
 
 
-def solve(env: InboxEnv, model: ChatModel, ctx: RunContext) -> AgentRun:
-    tools = Toolbox(
+def toolbox(env: InboxEnv, model: ChatModel | None, ctx: RunContext) -> Toolbox:
+    return Toolbox(
         [
             Tool(
                 "mail_help", "Describe the mail API and the search syntax.", NoArgs, lambda _: ctx.tool_call(env.help)
@@ -79,12 +79,7 @@ def solve(env: InboxEnv, model: ChatModel, ctx: RunContext) -> AgentRun:
             ),
         ]
     )
-    return run_agent(
-        model=model,
-        system=SYSTEM,
-        task=TASK,
-        toolbox=tools,
-        tracer=ctx.tracer,
-        config=ctx.agent,
-        goal_reached=lambda: env.accepted,
-    )
+
+
+SPEC = AgentSpec(system=SYSTEM, task=lambda _env: TASK, toolbox=toolbox)
+solve = SPEC.solve

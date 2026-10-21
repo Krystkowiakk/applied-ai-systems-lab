@@ -11,7 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from ...core.agent import AgentRun, run_agent
+from ...core.agent import AgentSpec
 from ...core.lab import RunContext
 from ...core.model import ChatModel
 from ...core.tools import NoArgs, Tool, Toolbox
@@ -52,8 +52,8 @@ class CloseArgs(BaseModel):
     approval_token: str
 
 
-def solve(env: MaintenancePortalEnv, model: ChatModel, ctx: RunContext) -> AgentRun:
-    tools = Toolbox(
+def toolbox(env: MaintenancePortalEnv, model: ChatModel | None, ctx: RunContext) -> Toolbox:
+    return Toolbox(
         [
             Tool(
                 "list_work_orders",
@@ -99,12 +99,9 @@ def solve(env: MaintenancePortalEnv, model: ChatModel, ctx: RunContext) -> Agent
             ),
         ]
     )
-    return run_agent(
-        model=model,
-        system=SYSTEM,
-        task=env.instruction,
-        toolbox=tools,
-        tracer=ctx.tracer,
-        config=ctx.agent,
-        goal_reached=lambda: bool(env.submissions),
-    )
+
+
+SPEC = AgentSpec(
+    system=SYSTEM, task=lambda env: env.instruction, toolbox=toolbox, done=lambda env: bool(env.submissions)
+)
+solve = SPEC.solve

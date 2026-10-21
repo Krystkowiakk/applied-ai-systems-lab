@@ -47,6 +47,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     trace = sub.add_parser("trace", help="Print a JSONL trace as a timeline.")
     trace.add_argument("path", type=Path)
 
+    serve = sub.add_parser("mcp", help="Serve a lab's tools as an MCP server (stdio or streamable HTTP).")
+    serve.add_argument("lab", choices=list(LABS))
+    serve.add_argument("--seed", type=int, default=0)
+    serve.add_argument("--transport", choices=["stdio", "http"], default="stdio")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8000)
+
     args = parser.parse_args(argv)
     if args.command == "list":
         for lab in LABS.values():
@@ -58,6 +65,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "trace":
         print(render_trace(read_trace(args.path)))
         return 0
+    if args.command == "mcp":
+        return _serve_mcp(args)
     try:
         if args.command == "run":
             return _run(args)
@@ -89,6 +98,34 @@ def _shared(p: argparse.ArgumentParser) -> None:
         help="Who approves irreversible actions: a simulated careful operator, or you.",
     )
     p.add_argument("--trace-dir", type=Path, default=Path("runs/traces"))
+    p.add_argument(
+        "--via-mcp", action="store_true", help="Serve the lab's tools over MCP in-process; the agent uses the MCP host."
+    )
+    p.add_argument(
+        "--discover", action="store_true", help="Give the agent search_tools and call_tool instead of the tool list."
+    )
+
+
+def _lab(args: argparse.Namespace, lab_id: str) -> Lab:
+    from .mcp.route import routed
+
+    return routed(get_lab(lab_id), via_mcp=args.via_mcp, discover=args.discover)
+
+
+def _serve_mcp(args: argparse.Namespace) -> int:
+    from .mcp.server import http_app, lab_server, serve_stdio
+
+    served = lab_server(get_lab(args.lab), args.seed)
+    if args.transport == "stdio":
+        import anyio
+
+        anyio.run(serve_stdio, served)
+        return 0
+    import uvicorn
+
+    print(f"MCP server for '{args.lab}' at http://{args.host}:{args.port}/mcp", file=sys.stderr)
+    uvicorn.run(http_app(served, host=args.host), host=args.host, port=args.port)
+    return 0
 
 
 def _model(args: argparse.Namespace, solvers: Sequence[str]) -> ChatModel | None:
@@ -133,7 +170,7 @@ def _configure(args: argparse.Namespace) -> Callable[[Any], None] | None:
 
 
 def _run(args: argparse.Namespace) -> int:
-    lab = get_lab(args.lab)
+    lab = _lab(args, args.lab)
     model = _model(args, [args.solver])
     report = run_once(
         lab,
@@ -150,7 +187,8 @@ def _run(args: argparse.Namespace) -> int:
 
 
 def _bench(args: argparse.Namespace) -> int:
-    labs = list(LABS.values()) if args.labs == "all" else [get_lab(i.strip()) for i in args.labs.split(",")]
+    ids = list(LABS) if args.labs == "all" else [i.strip() for i in args.labs.split(",")]
+    labs = [_lab(args, i) for i in ids]
     solvers = [s.strip() for s in args.solvers.split(",")]
     model = _model(args, solvers)
     options = _options(args)

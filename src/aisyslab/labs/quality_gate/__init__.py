@@ -21,5 +21,6 @@ LAB = Lab(
     make_env=QualityGateEnv,
     baseline=baseline.solve,
     agent=agent.solve,
+    spec=agent.SPEC,
     agent_config=AgentConfig(max_steps=20, max_tool_calls=30),
 )

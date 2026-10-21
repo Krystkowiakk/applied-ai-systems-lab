@@ -19,5 +19,6 @@ LAB = Lab(
     make_env=SparePartRunEnv,
     baseline=baseline.solve,
     agent=agent.solve,
+    spec=agent.SPEC,
     agent_config=AgentConfig(max_steps=30, max_tool_calls=40),
 )

@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 from pydantic import BaseModel, Field
 
-from ...core.agent import AgentRun, run_agent
+from ...core.agent import AgentSpec
 from ...core.calculator import calculator_tool
 from ...core.lab import RunContext
 from ...core.model import ChatModel
@@ -58,7 +58,7 @@ class AnswersArgs(BaseModel):
     answers: list[AnswerItem]
 
 
-def solve(env: RelocationRagEnv, model: ChatModel, ctx: RunContext) -> AgentRun:
+def toolbox(env: RelocationRagEnv, model: ChatModel | None, ctx: RunContext) -> Toolbox:
     def add_days(args: DaysArgs) -> dict[str, str]:
         try:
             start = date.fromisoformat(args.start)
@@ -66,7 +66,7 @@ def solve(env: RelocationRagEnv, model: ChatModel, ctx: RunContext) -> AgentRun:
             raise ToolError("start must be YYYY-MM-DD.") from exc
         return {"start": args.start, "days": str(args.days), "result": (start + timedelta(days=args.days)).isoformat()}
 
-    tools = Toolbox(
+    return Toolbox(
         [
             Tool(
                 "list_questions",
@@ -96,12 +96,7 @@ def solve(env: RelocationRagEnv, model: ChatModel, ctx: RunContext) -> AgentRun:
             ),
         ]
     )
-    return run_agent(
-        model=model,
-        system=SYSTEM,
-        task=TASK,
-        toolbox=tools,
-        tracer=ctx.tracer,
-        config=ctx.agent,
-        goal_reached=lambda: env.accepted,
-    )
+
+
+SPEC = AgentSpec(system=SYSTEM, task=lambda _env: TASK, toolbox=toolbox)
+solve = SPEC.solve

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from ...core.agent import AgentRun, run_agent
+from ...core.agent import AgentSpec
 from ...core.lab import RunContext
 from ...core.model import ChatModel
 from ...core.tools import Tool, Toolbox
@@ -38,8 +38,8 @@ class PlanArgs(BaseModel):
     commands: list[str] = Field(description="Commands in order, e.g. ['up', 'up', 'right', 'dismount', 'right'].")
 
 
-def solve(env: SparePartRunEnv, model: ChatModel, ctx: RunContext) -> AgentRun:
-    tools = Toolbox(
+def toolbox(env: SparePartRunEnv, model: ChatModel | None, ctx: RunContext) -> Toolbox:
+    return Toolbox(
         [
             Tool(
                 "search_docs",
@@ -64,12 +64,7 @@ def solve(env: SparePartRunEnv, model: ChatModel, ctx: RunContext) -> AgentRun:
             ),
         ]
     )
-    return run_agent(
-        model=model,
-        system=SYSTEM,
-        task=TASK,
-        toolbox=tools,
-        tracer=ctx.tracer,
-        config=ctx.agent,
-        goal_reached=lambda: env.accepted,
-    )
+
+
+SPEC = AgentSpec(system=SYSTEM, task=lambda _env: TASK, toolbox=toolbox)
+solve = SPEC.solve

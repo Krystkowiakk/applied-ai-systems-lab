@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from .messages import Message, Usage
 from .model import ChatModel, ModelError
@@ -43,6 +43,31 @@ class AgentConfig:
     max_input_tokens: int = 300_000
     max_output_tokens: int = 4096
     compact_above_tokens: int | None = None
+
+
+@dataclass(frozen=True)
+class AgentSpec:
+    """What an agent solver is made of: a prompt, a task and a tool factory.
+
+    Keeping the tools in a factory lets the same tools run inside the agent loop or behind an
+    MCP server, where another host's model drives them.
+    """
+
+    system: str
+    task: Callable[[Any], str]
+    toolbox: Callable[[Any, Any, Any], Toolbox]  # (env, model or None, RunContext)
+    done: Callable[[Any], bool] = lambda env: bool(getattr(env, "accepted", False))
+
+    def solve(self, env: Any, model: ChatModel, ctx: Any) -> AgentRun:
+        return run_agent(
+            model=model,
+            system=self.system,
+            task=self.task(env),
+            toolbox=self.toolbox(env, model, ctx),
+            tracer=ctx.tracer,
+            config=ctx.agent,
+            goal_reached=lambda: self.done(env),
+        )
 
 
 @dataclass

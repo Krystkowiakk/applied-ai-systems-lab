@@ -7,7 +7,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, TypeVar
 
-from .agent import AgentConfig, AgentRun
+from .agent import AgentConfig, AgentRun, AgentSpec
 from .messages import Message, Usage
 from .model import ChatModel, ModelError
 from .resilience import RetriesExhausted, RetryPolicy, TransientError, call_with_retries
@@ -125,3 +125,5 @@ class Lab:
     agent: Callable[[Any, ChatModel, RunContext], AgentRun]
     agent_config: AgentConfig = field(default_factory=AgentConfig)
     origin: str = ""
+    # The agent's prompt, task and tool factory, so the lab's tools can also be served over MCP.
+    spec: AgentSpec | None = None

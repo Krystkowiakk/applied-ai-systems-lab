@@ -17,7 +17,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from ...core.agent import AgentRun, run_agent
+from ...core.agent import AgentSpec
 from ...core.calculator import calculator_tool
 from ...core.lab import RunContext
 from ...core.messages import ImagePart, Message
@@ -62,7 +62,7 @@ class ReportArgs(BaseModel):
     shortfall_units: int
 
 
-def solve(env: SupplyIntakeEnv, model: ChatModel, ctx: RunContext) -> AgentRun:
+def toolbox(env: SupplyIntakeEnv, model: ChatModel | None, ctx: RunContext) -> Toolbox:
     def list_items(_: NoArgs) -> list[dict[str, Any]]:
         rows = ctx.tool_call(env.list_items)
         for row in rows:
@@ -77,6 +77,8 @@ def solve(env: SupplyIntakeEnv, model: ChatModel, ctx: RunContext) -> AgentRun:
         data = ctx.tool_call(env.fetch, args.item_id)
         if sniff(data) != "image/png":
             raise ToolError(f"{args.item_id} is not an image.", hint="Use read_item for documents.")
+        if model is None:
+            raise ToolError("No vision model is configured here.", hint="Answer from the other intake items.")
         text = ctx.side_call(
             model,
             system=VISION_SYSTEM,
@@ -95,7 +97,7 @@ def solve(env: SupplyIntakeEnv, model: ChatModel, ctx: RunContext) -> AgentRun:
             )
         return result
 
-    tools = Toolbox(
+    return Toolbox(
         [
             Tool(
                 "list_items", "List intake items with the content type detected from their bytes.", NoArgs, list_items
@@ -122,15 +124,6 @@ def solve(env: SupplyIntakeEnv, model: ChatModel, ctx: RunContext) -> AgentRun:
                 ).as_dict(),
             ),
         ]
-    )
-    return run_agent(
-        model=model,
-        system=SYSTEM,
-        task=TASK,
-        toolbox=tools,
-        tracer=ctx.tracer,
-        config=ctx.agent,
-        goal_reached=lambda: env.accepted,
     )
 
 
@@ -176,3 +169,7 @@ def _html_text(markup: str) -> str:
 
     Collector().feed(markup)
     return " ".join(chunks)
+
+
+SPEC = AgentSpec(system=SYSTEM, task=lambda _env: TASK, toolbox=toolbox)
+solve = SPEC.solve
