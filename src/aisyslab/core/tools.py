@@ -93,6 +93,10 @@ class Toolbox:
     def names(self) -> list[str]:
         return list(self._tools)
 
+    def extended(self, extra: Iterable[Tool]) -> Toolbox:
+        """A new toolbox with these tools added (same output cap)."""
+        return Toolbox([*self._tools.values(), *extra], max_output_chars=self.max_output_chars)
+
     def execute(self, call: ToolCall) -> ToolResult:
         started = time.perf_counter()
 

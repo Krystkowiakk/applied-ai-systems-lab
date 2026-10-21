@@ -7,6 +7,7 @@ generation / tool), so a JSONL trace can be exported later without changing call
 from __future__ import annotations
 
 import json
+import threading
 import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
@@ -21,22 +22,39 @@ class Tracer:
         self.events: list[dict[str, Any]] = []
         self._echo = echo
         self._started = time.perf_counter()
+        self._lock = threading.Lock()  # steps of a DAG and child agents may emit events concurrently
         if path is not None:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("", encoding="utf-8")
 
     def event(self, kind: str, **data: Any) -> None:
-        record = {"seq": len(self.events), "t": round(time.perf_counter() - self._started, 3), "kind": kind}
-        record.update(data)
-        self.events.append(record)
-        if self.path is not None:
-            with self.path.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+        with self._lock:
+            record = {"seq": len(self.events), "t": round(time.perf_counter() - self._started, 3), "kind": kind}
+            record.update(data)
+            self.events.append(record)
+            if self.path is not None:
+                with self.path.open("a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
         if self._echo is not None:
             self._echo(format_event(record))
 
+    def child(self, agent: str) -> Tracer:
+        """A tracer for a sub-agent: its events land in this trace, tagged with the agent's name."""
+        return ChildTracer(self, agent)
+
     def count(self, kind: str) -> int:
         return sum(1 for e in self.events if e["kind"] == kind)
+
+
+class ChildTracer(Tracer):
+    def __init__(self, parent: Tracer, agent: str) -> None:
+        super().__init__()
+        self.parent = parent
+        self.agent = agent
+
+    def event(self, kind: str, **data: Any) -> None:
+        super().event(kind, **data)
+        self.parent.event(kind, agent=self.agent, **data)
 
 
 def preview(text: str, limit: int = PREVIEW_CHARS) -> str:
@@ -46,7 +64,7 @@ def preview(text: str, limit: int = PREVIEW_CHARS) -> str:
 
 def format_event(e: dict[str, Any]) -> str:
     kind = e["kind"]
-    head = f"{e['t']:>8.3f}s  {kind:<10}"
+    head = f"{e['t']:>8.3f}s  {kind:<10}" + (f" [{e['agent']}]" if e.get("agent") else "")
     if kind == "generation":
         calls = ", ".join(e.get("tool_calls", [])) or "-"
         return f"{head} step {e['step']}: {e['input_tokens']}→{e['output_tokens']} tok, tools: {calls}"

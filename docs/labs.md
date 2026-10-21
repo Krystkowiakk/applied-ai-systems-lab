@@ -249,6 +249,31 @@ after the first rejection, and what it does with "unknown".
 
 ---
 
+## shift-briefing
+
+**Question.** The plant manager's three questions before the 06:00 meeting: where tonight's line-3
+stoppage started, which corrective work orders cannot start for lack of a part, and which of
+tonight's batches are held at the quality gate.
+
+**Environment.** Three systems built from the same seed: the line log (`line-incident`), the plant
+database (`plant-database`) and the quality lab's history (`quality-gate`). Every call to any of
+them counts toward this run.
+
+**Baseline.** The three investigations as a dependency graph, run in parallel, then one report:
+five API calls in total.
+
+**Agent.** An orchestrator with `delegate`, the workspace tools and `submit_briefing`, and no access
+to the data. Its specialists (`incident_analyst`, `parts_planner`, `quality_engineer`) are the
+other labs' agents, each in its own context with its own tools, budget and verifier, reporting
+through the shared workspace. See [orchestration.md](orchestration.md).
+
+**Verifier.** Checks the three sections and names the wrong one, without naming items.
+
+**Watch for.** How precise the orchestrator's tasks are, whether it reads the documents before it
+submits, and what the coordination costs compared with the five calls of the graph.
+
+---
+
 ## relocation-rag
 
 **Question.** Seven questions from someone moving to Arvenland (a fictional country) for work,

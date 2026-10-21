@@ -23,13 +23,21 @@ MAX_WORDS = 9
 Event = tuple[datetime, str, str, str]
 
 
-def solve(env: LineIncidentEnv, ctx: RunContext, max_attempts: int = 4) -> None:
-    events = [_parse(line) for line in ctx.call(env.download_log).splitlines()]
+def incident_events(log: str) -> list[Event]:
+    """The first occurrence of each non-chronic serious event around the first critical one."""
+    events = [_parse(line) for line in log.splitlines()]
     serious = [e for e in events if RANK[e[1]] >= RANK["WARN"]]
     chronic = _chronic(serious)
     first_crit = min(e[0] for e in serious if e[1] == "CRIT")
     window = [e for e in serious if first_crit - WINDOW_BEFORE <= e[0] <= first_crit + WINDOW_AFTER]
-    selected = _first_of_each([e for e in window if (e[2], _template(e[3])) not in chronic])
+    return _first_of_each([e for e in window if (e[2], _template(e[3])) not in chronic])
+
+
+def solve(env: LineIncidentEnv, ctx: RunContext, max_attempts: int = 4) -> None:
+    log = ctx.call(env.download_log)
+    events = [_parse(line) for line in log.splitlines()]
+    serious = [e for e in events if RANK[e[1]] >= RANK["WARN"]]
+    selected = incident_events(log)
 
     for _ in range(max_attempts):
         verdict = ctx.submit(env.submit, _render(selected))
