@@ -213,6 +213,42 @@ how many rounds of feedback it needs.
 
 ---
 
+## quality-gate
+
+**Question.** Which of tonight's 24 batches pass the quality gate? The quality lab has judged 240
+earlier batches OK or NOK; its rule was never written down.
+
+**Environment.** Two datasets: the inspected history (with the lab's verdict) and tonight's batches.
+Columns: batch number, line, shift, tightening torque, cure temperature, cure time, humidity and a
+rework ticket. The hidden rule is a torque window and a minimum cure temperature, with thresholds
+drawn per seed.
+
+**Traps.** `rework_ticket` is written only after the lab rejects a batch: a tree trained on it scores
+100% in cross-validation and passes every batch tonight (target leakage). Two of tonight's batches lost
+their cure-temperature reading and must be held. Failures above the upper torque limit are rare, so
+reading a sample of rows misses them.
+
+**Tools.** `describe_data` (sizes, missing values, per-verdict summaries of every column, including how
+often a text column is filled for OK and for NOK), `read_rows` (25 at a time), `train_tree` (a CART
+decision tree in code on the columns the solver chooses; returns the rules, training and
+cross-validated accuracy), `predict_tonight` ("unknown" when the tree needs a missing value),
+`submit_answer`.
+
+**Verifier.** Counts false passes (separately for missing measurements) and false holds without naming
+batches; partial answers get an F1 score. Tonight's batches are clear of the thresholds, so a rule
+learned from the history decides them the way the lab would.
+
+**Baseline.** 24 lines: the same decision tree on the four process measurements, missing values held.
+It knows which columns are measurements.
+
+**Agent.** The model reads, chooses features and checks that the rules make physical sense; the tree
+does the numbers. The prompt says not to judge batches by reading numbers.
+
+**Watch for.** Whether the agent trains at all or eyeballs rows, whether it spots the leakage before or
+after the first rejection, and what it does with "unknown".
+
+---
+
 ## relocation-rag
 
 **Question.** Seven questions from someone moving to Arvenland (a fictional country) for work,

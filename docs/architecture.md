@@ -4,7 +4,7 @@
 src/aisyslab/
   core/        harness: messages, model contract, tools, agent loop, tracing, retries, lab contract, runner, bench
   providers/   OpenAI Chat Completions (and any OpenAI-compatible server), Anthropic Messages
-  labs/        eight labs: env.py, baseline.py, agent.py, __init__.py each
+  labs/        nine labs: env.py, baseline.py, agent.py, __init__.py each
   cli.py       aisyslab list | show | run | bench | trace
 ```
 

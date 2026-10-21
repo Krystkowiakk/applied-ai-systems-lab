@@ -14,6 +14,8 @@ from aisyslab.labs.line_incident.env import TOKEN_LIMIT, LineIncidentEnv
 from aisyslab.labs.maintenance_portal.env import MaintenancePortalEnv
 from aisyslab.labs.maintenance_portal.pages import parse_work_order
 from aisyslab.labs.plant_database.env import EXTRA_REASONS, MISSING_REASONS, PlantDatabaseEnv
+from aisyslab.labs.quality_gate import tree as cart
+from aisyslab.labs.quality_gate.env import QualityGateEnv
 from aisyslab.labs.relocation_rag.env import RelocationRagEnv
 from aisyslab.labs.service_repair.env import ROOT, ServiceRepairEnv
 from aisyslab.labs.spare_part_run.env import SparePartRunEnv, solve_grid
@@ -210,6 +212,58 @@ def test_plant_database_write_attempt_fails_a_correct_answer() -> None:
         env.query("UPDATE work_orders SET status = 'closed'")
     verdict = env.submit(sorted(env.expected))
     assert not verdict.accepted and "write attempt" in verdict.feedback
+
+
+# ----- quality gate --------------------------------------------------------------------------
+MEASUREMENTS = ["torque_nm", "cure_temp_c", "cure_time_s", "humidity_pct"]
+
+
+def _decide(env: QualityGateEnv, features: list[str]) -> list[str]:
+    model_id = env.train(features)["model_id"]
+    return [p["batch_id"] for p in env.predict(model_id)["predictions"] if p["prediction"] == "OK"]
+
+
+def test_tree_finds_thresholds_and_refuses_missing_values() -> None:
+    rows = [{"x": x / 10} for x in range(100)]
+    labels = ["NOK" if r["x"] < 3.05 or r["x"] > 7.05 else "OK" for r in rows]
+    node = cart.fit(rows, labels, ["x"], max_depth=2)
+    assert all(cart.predict(node, r) == label for r, label in zip(rows, labels, strict=True))
+    assert any("x < 3.05" in rule for rule in cart.rules(node))
+    with pytest.raises(cart.MissingValue):
+        cart.predict(node, {"x": None})
+
+
+@pytest.mark.parametrize("seed", range(10))
+def test_quality_gate_measurements_decide_tonight(seed: int) -> None:
+    env = QualityGateEnv(seed, EnvOptions())
+    assert env.submit(_decide(env, MEASUREMENTS)).accepted
+
+
+def test_quality_gate_leakage_looks_perfect_and_fails() -> None:
+    env = QualityGateEnv(1, EnvOptions())
+    leaky = ["rework_ticket", "torque_nm", "cure_temp_c"]
+    trained = env.train(leaky)
+    assert trained["features_used"] == ["rework_ticket"] and trained["cv_accuracy"] == 1.0
+    verdict = env.submit(_decide(env, leaky))
+    assert not verdict.accepted and verdict.details["false_passes"] > 0
+
+
+def test_quality_gate_has_both_failure_modes_and_two_dropouts() -> None:
+    for seed in range(20):
+        env = QualityGateEnv(seed, EnvOptions())
+        measured = [b for b in env.tonight if b["cure_temp_c"] is not None]
+        assert len(env.tonight) - len(measured) == 2
+        assert any(b["torque_nm"] < env.torque_low for b in measured)
+        assert any(b["torque_nm"] > env.torque_high for b in measured)
+        assert any(b["cure_temp_c"] < env.cure_min for b in measured)
+
+
+def test_quality_gate_holds_missing_measurements() -> None:
+    env = QualityGateEnv(2, EnvOptions())
+    dropped = [b["batch_id"] for b in env.tonight if b["cure_temp_c"] is None]
+    verdict = env.submit(sorted(env.expected) + dropped)
+    assert not verdict.accepted and "missing measurement" in verdict.feedback
+    assert verdict.details["missing_passed"] == 2
 
 
 # ----- relocation rag ----------------------------------------------------------------------

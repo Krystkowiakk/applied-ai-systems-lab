@@ -209,3 +209,24 @@ def test_database_agent_with_a_clean_run_is_accepted() -> None:
     script = [tool_turn("run_query", sql=BLOCKED_ORDERS), tool_turn("submit_answer", work_order_ids=expected)]
     report = run_once(LABS["plant-database"], "agent", 6, model=ScriptedModel(script))
     assert report.accepted and report.status == "goal_reached" and report.score == 1.0
+
+
+def test_quality_agent_recovers_from_a_leaky_feature() -> None:
+    def policy(_s: str, messages: Sequence[Message], _t: Sequence[ToolSpec]) -> ModelTurn:
+        done = [m.tool_name for m in messages if m.role == "tool"]
+        if not done:
+            return tool_turn("describe_data")
+        last = last_tool_result(messages)
+        if done[-1] == "describe_data":
+            return tool_turn("train_tree", features=["torque_nm", "cure_temp_c", "rework_ticket"])
+        if done[-1] == "train_tree":
+            return tool_turn("predict_tonight", model_id=last["model_id"])
+        if done[-1] == "predict_tonight":
+            passing = [p["batch_id"] for p in last["predictions"] if p["prediction"] == "OK"]
+            return tool_turn("submit_answer", passing_batch_ids=passing)
+        if done[-1] == "submit_answer" and not last["accepted"]:
+            return tool_turn("train_tree", features=["torque_nm", "cure_temp_c", "cure_time_s", "humidity_pct"])
+        return text_turn("Done.")
+
+    report = run_once(LABS["quality-gate"], "agent", 3, model=ScriptedModel(policy))
+    assert report.accepted and report.status == "goal_reached" and report.submissions == 2

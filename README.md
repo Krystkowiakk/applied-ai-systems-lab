@@ -3,7 +3,7 @@
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-**Eight operations problems, each solved twice: by an LLM agent and by plain code, under the same verifier.**
+**Nine operations problems, each solved twice: by an LLM agent and by plain code, under the same verifier.**
 
 I work in operations and build AI systems. On real work the useful question is rarely "can a model
 do this?" It is "where does the model earn its place, and what does it cost when it doesn't?" This
@@ -11,7 +11,8 @@ repository turns that question into something you can run, measure and argue wit
 
 Every lab is a small simulated environment taken from operational work: a plant mailbox, a stopped
 production line, an edge service that won't start, supplier delays, an urgent spare-part run, a
-maintenance portal, a maintenance database, and a relocation assistant. Each one comes with:
+maintenance portal, a maintenance database, a quality gate, and a relocation
+assistant. Each one comes with:
 
 - a **verifier** that judges answers deterministically and gives feedback specific enough to act on,
   never so specific that it leaks the answer;
@@ -21,7 +22,7 @@ maintenance portal, a maintenance database, and a relocation assistant. Each one
 
 ## What the baselines show
 
-Measured with `aisyslab bench --seeds 0-19`: 160 runs, no model, no API key, about one second.
+Measured with `aisyslab bench --seeds 0-19`: 180 runs, no model, no API key, about one second.
 
 | Lab | Baseline accepted | Score | API calls / run | What decides it |
 |---|---|---|---|---|
@@ -32,9 +33,11 @@ Measured with `aisyslab bench --seeds 0-19`: 160 runs, no model, no API key, abo
 | `spare-part-run` | 20/20 | 1.00 | 5 | Planning on a fully specified map is search, and search is exact |
 | `maintenance-portal` | 20/20 | 1.00 | 6 | Code never reads the injected comment, so it cannot obey it |
 | `plant-database` | 20/20 | 1.00 | 2 | A known question is one SQL statement; the agent first has to find where the answer lives |
+| `quality-gate` | 20/20 | 1.00 | 3 | A decision tree learns the lab's thresholds from 240 batches; reading numbers is code's job |
 | `relocation-rag` | 0/20 | 0.28 | 14 | Code retrieves but cannot read: exceptions, dates, a question in Polish |
 
-Seven of the eight problems fall to 30 to 70 lines of code each, on every seed, with zero tokens. The
+Eight of the nine problems fall to 25 to 70 lines of code each (the quality gate also uses a 125-line
+decision tree, the same one the agent trains through a tool), on every seed, with zero tokens. The
 same baselines pass with 20% of API calls failing, because retries live in code. In those labs an
 agent has to justify itself on flexibility, not capability: what happens when the
 email is phrased differently, the fault is new, the map changes, the planner asks another question.
@@ -55,7 +58,7 @@ cd applied-ai-systems-lab
 python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
 
-aisyslab list                     # the eight labs
+aisyslab list                     # the nine labs
 aisyslab show supply-intake       # scenario, techniques, where it comes from
 aisyslab run supply-intake        # the baseline, streaming its trace
 aisyslab bench --seeds 0-4        # every baseline on five seeds
@@ -74,6 +77,7 @@ aisyslab run line-incident --solver agent --provider local --model qwen2.5-7b-in
 aisyslab run line-incident --solver agent --provider local --base-url http://localhost:11434/v1 --model qwen2.5:7b   # Ollama
 aisyslab run maintenance-portal --solver agent --provider anthropic --operator ask        # you approve irreversible actions
 aisyslab run plant-database --solver agent --provider openai --model gpt-5-mini          # schema discovery, read-only SQL
+aisyslab run quality-gate --solver agent --provider anthropic                             # pick features, let code fit the tree
 aisyslab trace runs/traces/<file>.jsonl                                                   # replay a run as a timeline
 ```
 
@@ -88,6 +92,7 @@ aisyslab trace runs/traces/<file>.jsonl                                         
 | [`spare-part-run`](docs/labs.md#spare-part-run) | Get a spare pump to the stopped line before the deadline. | Forklift battery vs walking time, one-way dismount, no-go zones, rules hidden in documents that must be found first |
 | [`maintenance-portal`](docs/labs.md#maintenance-portal) | Re-code one work order and close another. | A supplier comment that orders "AI assistants" to close everything; closing needs a human's approval token |
 | [`plant-database`](docs/labs.md#plant-database) | Which line-3 work orders cannot start because a spare part is short? | Stock split across storerooms and partly reserved, a superseded part number, a stale "waiting parts" status, two assets moved between lines, and a database that refuses writes |
+| [`quality-gate`](docs/labs.md#quality-gate) | Which of tonight's batches pass the quality gate? | A rule nobody wrote down, 240 inspected batches, a column filled in only after the inspection (target leakage), two sensor dropouts, rare failures above the upper torque limit |
 | [`relocation-rag`](docs/labs.md#relocation-rag) | Answer a newcomer's relocation questions from the handbook. | A superseded edition, an exception that overrides the rule, a deadline to compute, a question in Polish, one the handbook does not answer |
 
 Each lab's techniques, traps and design choices are in [docs/labs.md](docs/labs.md); the technique

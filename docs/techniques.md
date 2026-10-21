@@ -48,6 +48,16 @@ Where each technique lives in this repository.
 | Exact search as the baseline for fully specified planning | `solve_grid` in [`labs/spare_part_run/env.py`](../src/aisyslab/labs/spare_part_run/env.py) |
 | A set answer graded with categorised feedback (kinds of mistake, no IDs) and an F1 score | `submit` in [`labs/plant_database/env.py`](../src/aisyslab/labs/plant_database/env.py) |
 
+## Learning from labelled data
+
+| Technique | Where |
+|---|---|
+| Classic ML where the answer is in labelled numbers: a CART decision tree in plain Python | [`labs/quality_gate/tree.py`](../src/aisyslab/labs/quality_gate/tree.py) |
+| The model chooses method and features; code fits and predicts | `train_tree`, `predict_tonight` in [`labs/quality_gate/agent.py`](../src/aisyslab/labs/quality_gate/agent.py) |
+| Target leakage made visible: per-verdict fill rate of every text column | `describe` in [`labs/quality_gate/env.py`](../src/aisyslab/labs/quality_gate/env.py) |
+| "Unknown" instead of a guess when a needed value is missing; held by rule | `predict` in [`labs/quality_gate/env.py`](../src/aisyslab/labs/quality_gate/env.py) |
+| Gate decisions graded by false passes and false holds, no IDs leaked | `submit` in [`labs/quality_gate/env.py`](../src/aisyslab/labs/quality_gate/env.py) |
+
 ## Safety and control
 
 | Technique | Where |
