@@ -1,4 +1,4 @@
-"""Command line: list labs, run one, benchmark many, read a trace."""
+"""Command line: list labs, run one, benchmark many, read a trace, evaluate, serve."""
 
 from __future__ import annotations
 
@@ -67,6 +67,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
 
+    svc = sub.add_parser("serve", help="Run the maintenance request service: HTTP API, workers and web UI.")
+    svc.add_argument("--db", type=Path, default=Path("runs/service.db"))
+    svc.add_argument(
+        "--provider", choices=PROVIDERS, default=None, help="Use 'local' for a model server on this machine."
+    )
+    svc.add_argument("--demo", action="store_true", help="No model: an offline stand-in, to try the API and the UI.")
+    svc.add_argument("--model", default=None)
+    svc.add_argument("--fallback-provider", choices=PROVIDERS, default=None, help="Tried when the first model fails.")
+    svc.add_argument("--fallback-model", default=None)
+    svc.add_argument("--triage-model", default=None, help="A smaller model for /v1/triage (same provider).")
+    svc.add_argument("--base-url", default=None)
+    svc.add_argument("--effort", default=None)
+    svc.add_argument("--workers", type=int, default=2)
+    svc.add_argument("--host", default="127.0.0.1")
+    svc.add_argument("--port", type=int, default=8000)
+
+    ten = sub.add_parser("tenant", help="Create a tenant of the service and print its token (shown once).")
+    ten.add_argument("name")
+    ten.add_argument("--budget", type=int, default=500_000, help="Token budget.")
+    ten.add_argument("--db", type=Path, default=Path("runs/service.db"))
+
     args = parser.parse_args(argv)
     if args.command == "list":
         for lab in LABS.values():
@@ -84,6 +105,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .evals.cli import run as run_eval_command
 
         return run_eval_command(args)
+    if args.command == "tenant":
+        return _tenant(args)
+    if args.command == "serve":
+        try:
+            return _serve(args)
+        except ModelError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
     try:
         if args.command == "run":
             return _run(args)
@@ -124,6 +153,54 @@ def _shared(p: argparse.ArgumentParser) -> None:
     p.add_argument(
         "--promptless", action="store_true", help="Run the agent without its system prompt (a tool-description eval)."
     )
+
+
+def _tenant(args: argparse.Namespace) -> int:
+    from .runtime.store import Store
+
+    args.db.parent.mkdir(parents=True, exist_ok=True)
+    tenant_id, token = Store(args.db).create_tenant(args.name, args.budget)
+    print(f"tenant {tenant_id} ({args.name}), budget {args.budget:,} tokens")
+    print(f"token (shown once, only its hash is stored): {token}")
+    return 0
+
+
+def _serve(args: argparse.Namespace) -> int:
+    try:
+        import uvicorn
+
+        from .runtime.api import create_app
+    except ImportError:
+        print("error: the service needs FastAPI and uvicorn: pip install -e '.[service]'", file=sys.stderr)
+        return 2
+    from .runtime import ModelGateway, Route, Runtime, Store
+
+    primary: ChatModel
+    if args.demo:
+        from .runtime.demo import DemoModel
+
+        primary = DemoModel()
+    elif args.provider:
+        primary = make_model(args.provider, args.model, base_url=args.base_url, effort=args.effort)
+    else:
+        print("error: serve needs --provider (or --demo to try it without a model)", file=sys.stderr)
+        return 2
+    models = [primary]
+    if args.fallback_provider:
+        models.append(make_model(args.fallback_provider, args.fallback_model, effort=args.effort))
+    triage = primary
+    if args.triage_model and args.provider:
+        triage = make_model(args.provider, args.triage_model, base_url=args.base_url)
+    args.db.parent.mkdir(parents=True, exist_ok=True)
+    store = Store(args.db)
+    gateway = ModelGateway({"default": models, "triage": Route((triage, *models[1:]), cache=True)}, store)
+    app = create_app(Runtime(store, gateway), workers=args.workers)
+    print(
+        f"Maintenance request service on http://{args.host}:{args.port}/  (models: {', '.join(m.name for m in models)})"
+    )
+    print(f"Create a token with: aisyslab tenant <name> --db {args.db}")
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    return 0
 
 
 def _lab(args: argparse.Namespace, lab_id: str) -> Lab:

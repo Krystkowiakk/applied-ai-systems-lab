@@ -3,26 +3,61 @@
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-**Nine operations problems, each solved twice: by an LLM agent and by plain code, under the same verifier.**
+**The techniques I use to build AI systems and my own tools, as of October 2026, each shown on a
+runnable example from plant operations, industrial planning or software building.**
 
-I work in operations and build AI systems. On real work the useful question is rarely "can a model
-do this?" It is "where does the model earn its place, and what does it cost when it doesn't?" This
-repository turns that question into something you can run, measure and argue with.
+I work in operations and build AI systems and tools for it. This repository is a snapshot of that
+toolbox: agents and the tools they call, retrieval, several agents on one task, MCP, evaluation,
+safety and the service around them. Every technique is shown on an example where it makes sense.
+Every example has a verifier that judges the result in code, and most are solved twice, by plain
+code and by an agent. On real work the useful question is rarely "can a model do this?" It is
+"where does the model earn its place, and what does it cost when it doesn't?"
 
-Every lab is a small simulated environment taken from operational work: a plant mailbox, a stopped
-production line, an edge service that won't start, supplier delays, an urgent spare-part run, a
-maintenance portal, a maintenance database, a quality gate, and a relocation
-assistant. Each one comes with:
+## The examples
 
-- a **verifier** that judges answers deterministically and gives feedback specific enough to act on,
-  never so specific that it leaks the answer;
-- a **baseline** in plain Python that calls no model;
-- an **agent** that solves the same task through tools, on OpenAI, Anthropic or a local model;
-- a **trace** of every model call, tool call, retry and verdict, with token costs.
+**Plant operations**
+
+| Example | The question | What it shows |
+|---|---|---|
+| [`inbox`](docs/labs.md#inbox) | Three facts from the plant mailbox, with corrections and look-alike senders | two-step retrieval, query operators, a sender trust rule |
+| [`line-incident`](docs/labs.md#line-incident) | Why did line 3 stop overnight? | a context budget, reduction in code before any model call |
+| [`maintenance-portal`](docs/labs.md#maintenance-portal) | Re-code one work order and close another | prompt injection handled by design, human approval |
+| [`quality-gate`](docs/labs.md#quality-gate) | Which of tonight's batches pass the gate? | classic ML in code, target leakage |
+| [`shift-briefing`](docs/labs.md#shift-briefing) | One report from three investigations | an orchestrator and specialists, a shared workspace |
+| Shift handover memory *(planned)* | What does the next shift need to know? | long-term memory, scopes, facts that supersede older ones |
+| Quality claim assistant *(planned)* | A customer complaint about a batch, answered and logged | data classification, anonymisation, moderation, a topic guard, an audit log |
+| Voice on the shop floor *(planned)* | Voice notes at the machine, a spoken briefing for the shift lead | speech-to-text with plant vocabulary, text-to-speech, a voice agent |
+| Visual work instructions *(planned)* | An instruction card for a maintenance step | image generation, a template in code, a vision check |
+
+**Industrial planning**
+
+| Example | The question | What it shows |
+|---|---|---|
+| [`supply-intake`](docs/labs.md#supply-intake) | Which supplier delay stops a line tonight? | routing by content, vision cross-checked in code |
+| [`spare-part-run`](docs/labs.md#spare-part-run) | Get a spare pump to the stopped line before the deadline | the model proposes, a simulator judges |
+| [`plant-database`](docs/labs.md#plant-database) | Which work orders are blocked by a missing part? | schema discovery, read-only SQL |
+| [Ticket triage](docs/evals.md) | Maintenance tickets to failure codes and priorities | eval sets, a calibrated judge, model comparison, prompt optimisation |
+| Production schedule *(planned)* | Tomorrow's orders on three machines | code written by the model and run in a sandbox |
+| Replacement part research *(planned)* | A component is discontinued: what replaces it, from whom, how fast? | web search, a crawler, a deep research loop |
+| Asset and parts graph *(planned)* | Which lines and orders does a late part affect? | graph RAG |
+| Fine-tuned triage *(planned)* | The triage model, trained instead of prompted | fine-tuning compared with prompting |
+
+**Software building**
+
+| Example | The question | What it shows |
+|---|---|---|
+| [`service-repair`](docs/labs.md#service-repair) | Get the line's edge gateway running again | a restricted shell, policy enforced by the environment |
+| [`relocation-rag`](docs/labs.md#relocation-rag) | A product feature: answer, cite, or say it is not covered | hybrid retrieval, agentic search, checked citations |
+| [MCP servers and host](docs/mcp.md) | Use the labs' tools from any MCP client, and MCP servers from the agent | servers over stdio and HTTP, a host, tool discovery |
+| [Agent toolkit](docs/architecture.md) | The loop under every example | typed tools, budgets, retries, providers, traces |
+| [Maintenance request service](docs/runtime.md) | The team's requests as durable jobs, with a web UI | a model gateway, a durable runtime, streaming, tenants, cron |
+
+Every technique, with links into the code: [docs/techniques.md](docs/techniques.md). Planned
+examples are designed and listed there so the map is complete; they are built next.
 
 ## What the baselines show
 
-Measured with `aisyslab bench --seeds 0-19`: 180 runs, no model, no API key, about one second.
+Measured with `aisyslab bench --seeds 0-19`: 200 runs, no model, no API key, under two seconds.
 
 | Lab | Baseline accepted | Score | API calls / run | What decides it |
 |---|---|---|---|---|
@@ -34,14 +69,16 @@ Measured with `aisyslab bench --seeds 0-19`: 180 runs, no model, no API key, abo
 | `maintenance-portal` | 20/20 | 1.00 | 6 | Code never reads the injected comment, so it cannot obey it |
 | `plant-database` | 20/20 | 1.00 | 2 | A known question is one SQL statement; the agent first has to find where the answer lives |
 | `quality-gate` | 20/20 | 1.00 | 3 | A decision tree learns the lab's thresholds from 240 batches; reading numbers is code's job |
+| `shift-briefing` | 20/20 | 1.00 | 5 | When the plan is known, a parallel graph of three queries beats a team of agents |
 | `relocation-rag` | 0/20 | 0.28 | 14 | Code retrieves but cannot read: exceptions, dates, a question in Polish |
 
-Eight of the nine problems fall to 25 to 70 lines of code each (the quality gate also uses a 125-line
-decision tree, the same one the agent trains through a tool), on every seed, with zero tokens. The
-same baselines pass with 20% of API calls failing, because retries live in code. In those labs an
-agent has to justify itself on flexibility, not capability: what happens when the
+Nine of the ten problems fall to under 90 lines of code each (the quality gate also uses a
+125-line decision tree, the same one the agent trains through a tool), on every seed, with zero
+tokens. The same baselines pass with 20% of API calls failing, because retries live in code. In
+those labs an agent has to justify itself on flexibility, not capability: what happens when the
 email is phrased differently, the fault is new, the map changes, the planner asks another question.
-The last lab is where the model earns its place, and the agent there is graded on value **and** citation.
+The last lab is where the model earns its place, and the agent there is graded on value **and**
+citation.
 
 Agent results depend on the model, the effort setting and the day, so none are committed. Produce
 your own, with your key or a local model:
@@ -58,11 +95,14 @@ cd applied-ai-systems-lab
 python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
 
-aisyslab list                     # the nine labs
+aisyslab list                     # the ten labs
 aisyslab show supply-intake       # scenario, techniques, where it comes from
 aisyslab run supply-intake        # the baseline, streaming its trace
 aisyslab bench --seeds 0-4        # every baseline on five seeds
-pytest                            # 124 offline tests, under a second
+aisyslab eval optimize            # prompt optimisation, offline stand-ins
+aisyslab tenant demo              # a token for the service (shown once)
+aisyslab serve --demo             # the service and its web UI on :8000, without a model
+pytest                            # 234 offline tests
 ```
 
 With a model (keys are read from the environment, never from files in the repo):
@@ -78,6 +118,11 @@ aisyslab run line-incident --solver agent --provider local --base-url http://loc
 aisyslab run maintenance-portal --solver agent --provider anthropic --operator ask        # you approve irreversible actions
 aisyslab run plant-database --solver agent --provider openai --model gpt-5-mini          # schema discovery, read-only SQL
 aisyslab run quality-gate --solver agent --provider anthropic                             # pick features, let code fit the tree
+aisyslab run shift-briefing --solver agent --provider anthropic                           # an orchestrator and three specialists
+aisyslab run plant-database --solver agent --provider anthropic --via-mcp --discover      # tools through MCP, found by search
+aisyslab mcp plant-database --seed 4                                                      # serve a lab to an MCP client
+aisyslab eval triage --provider openai --models gpt-5-mini,gpt-5 --judge                  # compare models on one eval set
+aisyslab serve --provider anthropic --fallback-provider openai                            # the service, with a fallback model
 aisyslab trace runs/traces/<file>.jsonl                                                   # replay a run as a timeline
 ```
 
@@ -93,17 +138,19 @@ aisyslab trace runs/traces/<file>.jsonl                                         
 | [`maintenance-portal`](docs/labs.md#maintenance-portal) | Re-code one work order and close another. | A supplier comment that orders "AI assistants" to close everything; closing needs a human's approval token |
 | [`plant-database`](docs/labs.md#plant-database) | Which line-3 work orders cannot start because a spare part is short? | Stock split across storerooms and partly reserved, a superseded part number, a stale "waiting parts" status, two assets moved between lines, and a database that refuses writes |
 | [`quality-gate`](docs/labs.md#quality-gate) | Which of tonight's batches pass the quality gate? | A rule nobody wrote down, 240 inspected batches, a column filled in only after the inspection (target leakage), two sensor dropouts, rare failures above the upper torque limit |
+| [`shift-briefing`](docs/labs.md#shift-briefing) | Where did tonight's stoppage start, which work orders are blocked, which batches are held? | Three systems, specialists that cannot see each other's context, and a verifier that names the wrong section but not the items |
 | [`relocation-rag`](docs/labs.md#relocation-rag) | Answer a newcomer's relocation questions from the handbook. | A superseded edition, an exception that overrides the rule, a deadline to compute, a question in Polish, one the handbook does not answer |
 
-Each lab's techniques, traps and design choices are in [docs/labs.md](docs/labs.md); the technique
-index with links into the code is [docs/techniques.md](docs/techniques.md).
+Each lab's techniques, traps and design choices are in [docs/labs.md](docs/labs.md). Beyond the
+labs: [MCP](docs/mcp.md), [orchestration](docs/orchestration.md), [evaluation](docs/evals.md) and the
+[service runtime](docs/runtime.md).
 
 ## Design principles
 
 1. **Decide where the model belongs before building.** A model is for what code cannot do:
    reading free text, images, unknown schemas, ambiguous instructions. Everything else is code.
 2. **The model proposes, code disposes.** Plans go through simulators, values through validators,
-   actions through narrow APIs. The judge is never the model.
+   actions through narrow APIs. Verifiers are code.
 3. **Feedback is a contract.** Verifiers name what is wrong ("no evidence for cooling-loop",
    "value from a superseded edition") and agents iterate on it.
 4. **Context is a budget.** Search before reading, grouped repeats instead of raw logs, bounded
@@ -119,33 +166,40 @@ index with links into the code is [docs/techniques.md](docs/techniques.md).
    hide whether the agent works, so comparisons stay honest.
 9. **Every run leaves a trace.** JSONL events for each generation, tool call, retry and verdict,
    including model calls made inside tools (vision), so cost per completed task is real.
+10. **Measure before trusting.** A prompt is checked on an eval set with a holdout it never saw. A
+    model judge grades only what code cannot, and only after it is calibrated against human labels.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    CLI["aisyslab run / bench"] --> Runner
+    CLI["aisyslab run / bench / eval"] --> Runner
     Runner --> Env["Lab environment<br/>(seeded, optional chaos)"]
     Runner --> Baseline["Baseline<br/>plain code"]
     Runner --> Agent["Agent loop<br/>budgets in code"]
     Agent --> Model["ChatModel<br/>OpenAI · Anthropic · local"]
     Agent --> Tools["Toolbox<br/>typed args, errors as data"]
+    Agent -.->|via MCP| MCP["MCP host and servers"]
+    MCP -.-> Tools
     Tools -->|retries for 503/429| Env
     Baseline -->|retries for 503/429| Env
     Env --> Verifier["Verifier<br/>deterministic feedback"]
     Runner --> Trace["JSONL trace + report<br/>tokens, calls, verdicts"]
 ```
 
-The harness is about 1,400 lines with no agent framework: provider adapters translate one neutral
+The harness is about 1,800 lines with no agent framework: provider adapters translate one neutral
 message format to the OpenAI Chat Completions and Anthropic Messages APIs (assistant turns are
 replayed verbatim so reasoning blocks survive the tool loop), the loop enforces budgets, and labs
-plug in through a small contract. Details and trade-offs: [docs/architecture.md](docs/architecture.md).
+plug in through a small contract. MCP, orchestration, evaluation and the service runtime are
+separate packages on top of it. Details and trade-offs: [docs/architecture.md](docs/architecture.md).
 
 ## Honest limits
 
 - **No agent results are committed.** The tests drive the agents with scripted models; that proves
   the wiring (schemas, validation, verdicts, budgets, cost accounting), not that a given model
   solves the labs. That is what `aisyslab bench --solvers agent` is for.
+- **Planned examples are designed, not built.** The technique map marks each one; nothing planned
+  is presented as working.
 - **The environments are small and synthetic on purpose.** Each trap is there so a failure mode is
   visible and checkable. Production data is messier; the verifiers here are kinder than reality.
 - **Token budgets inside environments use one deterministic estimate** so verifier, tools and

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import itertools
 from collections.abc import Callable, Sequence
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 from .messages import Message, ModelTurn, ToolCall, ToolSpec, Usage
 from .tokens import estimate_tokens
@@ -24,6 +24,28 @@ class ChatModel(Protocol):
         system: str,
         messages: Sequence[Message],
         tools: Sequence[ToolSpec],
+        max_output_tokens: int = 4096,
+    ) -> ModelTurn: ...
+
+
+TextSink = Callable[[str], None]
+
+
+@runtime_checkable
+class StreamingChatModel(ChatModel, Protocol):
+    """A model that also hands over its text while it is being generated.
+
+    ``on_text`` receives the text in pieces as they arrive; the returned turn is the same as
+    ``complete`` would return. Callers that do not need streaming keep using ``complete``.
+    """
+
+    def complete_stream(
+        self,
+        *,
+        system: str,
+        messages: Sequence[Message],
+        tools: Sequence[ToolSpec],
+        on_text: TextSink,
         max_output_tokens: int = 4096,
     ) -> ModelTurn: ...
 
@@ -72,6 +94,20 @@ class ScriptedModel:
         prompt = system + "".join(m.content for m in messages)
         turn.usage = Usage(input_tokens=estimate_tokens(prompt), output_tokens=turn.usage.output_tokens)
         turn.model = self._name
+        return turn
+
+    def complete_stream(
+        self,
+        *,
+        system: str,
+        messages: Sequence[Message],
+        tools: Sequence[ToolSpec],
+        on_text: TextSink,
+        max_output_tokens: int = 4096,
+    ) -> ModelTurn:
+        turn = self.complete(system=system, messages=messages, tools=tools, max_output_tokens=max_output_tokens)
+        for start in range(0, len(turn.text), 16):  # pieces, the way a provider streams them
+            on_text(turn.text[start : start + 16])
         return turn
 
 

@@ -87,3 +87,70 @@ def test_anthropic_response_usage_and_stop() -> None:
     assert turn.provider_state == blocks and turn.stop_reason == "tool_use"
     refusal = parse_anthropic_response(NS(content=[], usage=usage, stop_reason="refusal", model="m"))
     assert refusal.stop_reason == "refusal"
+
+
+class _Manager:
+    """Stands in for an SDK stream manager: a context manager around a stream."""
+
+    def __init__(self, stream: object) -> None:
+        self.stream = stream
+
+    def __enter__(self) -> object:
+        return self.stream
+
+    def __exit__(self, *_exc: object) -> bool:
+        return False
+
+
+def test_anthropic_stream_passes_text_on_and_parses_the_final_message() -> None:
+    from aisyslab.providers.anthropic_messages import AnthropicModel
+
+    final = NS(
+        content=[NS(type="text", text="Hello world")],
+        usage=NS(input_tokens=10, output_tokens=2, cache_read_input_tokens=0, cache_creation_input_tokens=0),
+        stop_reason="end_turn",
+        model="claude-x",
+    )
+    stream = NS(text_stream=iter(["Hello ", "world"]), get_final_message=lambda: final)
+    sent: dict = {}
+    model = AnthropicModel.__new__(AnthropicModel)  # no SDK client: the transport is faked below
+    model.model, model.effort, model.fallbacks = "claude-x", None, False
+    model._anthropic = NS(APIStatusError=type("E1", (Exception,), {}), APIConnectionError=type("E2", (Exception,), {}))
+    model._client = NS(messages=NS(stream=lambda **kw: sent.update(kw) or _Manager(stream)))
+    pieces: list[str] = []
+    turn = model.complete_stream(
+        system="s", messages=[Message(role="user", content="hi")], tools=[], on_text=pieces.append
+    )
+    assert pieces == ["Hello ", "world"] and turn.text == "Hello world" and turn.usage.input_tokens == 10
+    assert sent["system"] == "s" and sent["cache_control"] == {"type": "ephemeral"}
+
+
+def test_openai_stream_passes_deltas_on_and_estimates_missing_usage() -> None:
+    from aisyslab.providers.openai_chat import OpenAIChatModel
+
+    final = NS(
+        choices=[NS(message=NS(content="Hi there", refusal=None, tool_calls=None), finish_reason="stop")],
+        usage=None,  # local servers may not report usage for a stream
+        model="local-x",
+    )
+    events = [NS(type="chunk"), NS(type="content.delta", delta="Hi "), NS(type="content.delta", delta="there")]
+
+    class Stream:
+        def __iter__(self) -> object:
+            return iter(events)
+
+        def get_final_completion(self) -> object:
+            return final
+
+    sent: dict = {}
+    model = OpenAIChatModel.__new__(OpenAIChatModel)
+    model.model, model.reasoning_effort, model.temperature = "local-x", None, None
+    model.token_param, model.stream_usage = "max_tokens", False
+    model._openai = NS(APIError=type("APIError", (Exception,), {}))
+    model._client = NS(chat=NS(completions=NS(stream=lambda **kw: sent.update(kw) or _Manager(Stream()))))
+    pieces: list[str] = []
+    turn = model.complete_stream(
+        system="s", messages=[Message(role="user", content="hi")], tools=[], on_text=pieces.append
+    )
+    assert pieces == ["Hi ", "there"] and turn.text == "Hi there" and turn.usage.output_tokens > 0
+    assert "stream_options" not in sent and sent["max_tokens"] == 4096

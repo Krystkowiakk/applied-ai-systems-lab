@@ -40,7 +40,9 @@ def make_model(
         url = base_url or os.environ.get("AISYSLAB_LOCAL_URL", DEFAULT_LOCAL_URL)
         name = model or os.environ.get("AISYSLAB_LOCAL_MODEL") or _first_local_model(url)
         # Local servers expect the classic parameter name.
-        return OpenAIChatModel(name, base_url=url, api_key="local", token_param="max_tokens", label=f"local:{name}")
+        return OpenAIChatModel(
+            name, base_url=url, api_key="local", token_param="max_tokens", label=f"local:{name}", stream_usage=False
+        )
     raise ModelError(f"Unknown provider '{provider}'. Choose one of: {', '.join(PROVIDERS)}.")
 
 

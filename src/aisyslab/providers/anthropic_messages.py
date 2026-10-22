@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from ..core.messages import Message, ModelTurn, StopReason, ToolCall, ToolSpec, Usage
-from ..core.model import ModelError
+from ..core.model import ModelError, TextSink
 
 DEFAULT_MODEL = "claude-opus-5-5"
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
@@ -54,6 +54,45 @@ class AnthropicModel:
         tools: Sequence[ToolSpec],
         max_output_tokens: int = 4096,
     ) -> ModelTurn:
+        kwargs = self._request(system, messages, tools, max_output_tokens)
+        try:
+            if self.fallbacks:
+                response = self._client.beta.messages.create(betas=[FALLBACK_BETA], fallbacks="default", **kwargs)
+            else:
+                response = self._client.messages.create(**kwargs)
+        except (self._anthropic.APIStatusError, self._anthropic.APIConnectionError) as exc:
+            raise ModelError(f"{type(exc).__name__}: {exc}") from exc
+        return parse_anthropic_response(response)
+
+    def complete_stream(
+        self,
+        *,
+        system: str,
+        messages: Sequence[Message],
+        tools: Sequence[ToolSpec],
+        on_text: TextSink,
+        max_output_tokens: int = 4096,
+    ) -> ModelTurn:
+        """The same request, streamed: text goes to ``on_text`` as it arrives, the final message
+        is parsed exactly like a non-streamed one."""
+        kwargs = self._request(system, messages, tools, max_output_tokens)
+        manager: Any
+        try:
+            if self.fallbacks:
+                manager = self._client.beta.messages.stream(betas=[FALLBACK_BETA], fallbacks="default", **kwargs)
+            else:
+                manager = self._client.messages.stream(**kwargs)
+            with manager as stream:
+                for text in stream.text_stream:
+                    on_text(text)
+                response = stream.get_final_message()
+        except (self._anthropic.APIStatusError, self._anthropic.APIConnectionError) as exc:
+            raise ModelError(f"{type(exc).__name__}: {exc}") from exc
+        return parse_anthropic_response(response)
+
+    def _request(
+        self, system: str, messages: Sequence[Message], tools: Sequence[ToolSpec], max_output_tokens: int
+    ) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
             "model": self.model,
             "max_tokens": max(max_output_tokens, MIN_MAX_TOKENS),
@@ -69,14 +108,7 @@ class AnthropicModel:
             ]
         if self.effort:
             kwargs["output_config"] = {"effort": self.effort}
-        try:
-            if self.fallbacks:
-                response = self._client.beta.messages.create(betas=[FALLBACK_BETA], fallbacks="default", **kwargs)
-            else:
-                response = self._client.messages.create(**kwargs)
-        except (self._anthropic.APIStatusError, self._anthropic.APIConnectionError) as exc:
-            raise ModelError(f"{type(exc).__name__}: {exc}") from exc
-        return parse_anthropic_response(response)
+        return kwargs
 
 
 def to_anthropic_messages(messages: Sequence[Message]) -> list[dict[str, Any]]:

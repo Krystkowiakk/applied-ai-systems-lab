@@ -13,7 +13,8 @@ from collections.abc import Sequence
 from typing import Any
 
 from ..core.messages import Message, ModelTurn, StopReason, ToolCall, ToolSpec, Usage
-from ..core.model import ModelError
+from ..core.model import ModelError, TextSink
+from ..core.tokens import estimate_tokens
 
 
 class OpenAIChatModel:
@@ -29,6 +30,7 @@ class OpenAIChatModel:
         max_retries: int = 3,
         timeout: float = 180.0,
         label: str | None = None,
+        stream_usage: bool = True,
     ) -> None:
         try:
             import openai
@@ -46,6 +48,9 @@ class OpenAIChatModel:
         self.temperature = temperature  # left unset by default: reasoning models reject it
         self.token_param = token_param
         self._label = label or model
+        # Token usage of a streamed response is only sent when asked for; some local servers
+        # do not support the option, and then usage is estimated from the text instead.
+        self.stream_usage = stream_usage
 
     @property
     def name(self) -> str:
@@ -59,6 +64,44 @@ class OpenAIChatModel:
         tools: Sequence[ToolSpec],
         max_output_tokens: int = 4096,
     ) -> ModelTurn:
+        payload = self._payload(system, messages, tools, max_output_tokens)
+        try:
+            response = self._client.chat.completions.create(**payload)
+        except self._openai.APIError as exc:
+            raise ModelError(f"{type(exc).__name__}: {exc}") from exc
+        return parse_openai_response(response)
+
+    def complete_stream(
+        self,
+        *,
+        system: str,
+        messages: Sequence[Message],
+        tools: Sequence[ToolSpec],
+        on_text: TextSink,
+        max_output_tokens: int = 4096,
+    ) -> ModelTurn:
+        """The same request, streamed: content deltas go to ``on_text``; the final completion is
+        parsed exactly like a non-streamed one."""
+        payload = self._payload(system, messages, tools, max_output_tokens)
+        if self.stream_usage:
+            payload["stream_options"] = {"include_usage": True}
+        try:
+            with self._client.chat.completions.stream(**payload) as stream:
+                for event in stream:
+                    if event.type == "content.delta":
+                        on_text(event.delta)
+                final = stream.get_final_completion()
+        except self._openai.APIError as exc:
+            raise ModelError(f"{type(exc).__name__}: {exc}") from exc
+        turn = parse_openai_response(final)
+        if final.usage is None:
+            prompt = system + "".join(m.content for m in messages)
+            turn.usage = Usage(input_tokens=estimate_tokens(prompt), output_tokens=estimate_tokens(turn.text))
+        return turn
+
+    def _payload(
+        self, system: str, messages: Sequence[Message], tools: Sequence[ToolSpec], max_output_tokens: int
+    ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": [{"role": "system", "content": system}, *to_openai_messages(messages)],
@@ -76,11 +119,7 @@ class OpenAIChatModel:
             payload["reasoning_effort"] = self.reasoning_effort
         if self.temperature is not None:
             payload["temperature"] = self.temperature
-        try:
-            response = self._client.chat.completions.create(**payload)
-        except self._openai.APIError as exc:
-            raise ModelError(f"{type(exc).__name__}: {exc}") from exc
-        return parse_openai_response(response)
+        return payload
 
 
 def to_openai_messages(messages: Sequence[Message]) -> list[dict[str, Any]]:
