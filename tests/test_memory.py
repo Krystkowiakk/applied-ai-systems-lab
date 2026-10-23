@@ -149,3 +149,18 @@ def test_the_agent_builds_memory_then_answers_from_it() -> None:
     report = run_once(LABS["shift-handover"], "agent", 2, model=ScriptedModel(policy))
     assert report.accepted and not any(seen_logs)  # the agent itself never saw a log
     assert report.model_calls > 15  # one observer call per shift, the reflector, the agent's turns
+
+
+def test_recall_treats_scope_as_a_soft_filter_and_repeats_are_kept_once() -> None:
+    env = ShiftHandoverEnv(1, EnvOptions())
+    kept = [
+        {"when": "Mon morning", "scope": "asset:press 2", "status": "open", "text": "Press 2 limited to 750 cycles/h."},
+        {"when": "Tue night", "scope": "asset:press 2", "status": "open", "text": "Press 2 limited to 750 cycles/h!"},
+        {"when": "Wed night", "scope": "line-3", "status": "resolved", "text": "S4 on line 3 replaced, jumper out."},
+    ]
+    assert env.keep(kept) == {"kept": 2, "repeats_skipped": 1}  # the second says nothing new
+    by_name = env.recall("cycle limit", scope="press 2")["observations"]
+    assert [o["scope"] for o in by_name] == ["asset:press 2"]
+    elsewhere = env.recall("S4 jumper", scope="plant")
+    assert "searched every scope" in elsewhere["hint"] and elsewhere["observations"][0]["scope"] == "line-3"
+    assert env.read_handover()["scopes_kept"] == {"asset:press 2": 1, "line-3": 1}

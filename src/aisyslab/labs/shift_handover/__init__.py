@@ -23,5 +23,5 @@ LAB = Lab(
     baseline=baseline.solve,
     agent=agent.solve,
     spec=agent.SPEC,
-    agent_config=AgentConfig(max_steps=35, max_tool_calls=30),
+    agent_config=AgentConfig(max_steps=45, max_tool_calls=40),
 )

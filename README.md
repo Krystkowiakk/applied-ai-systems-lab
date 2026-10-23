@@ -107,11 +107,12 @@ shell, guessed an API token and overwrote the wrong lines of the config, until i
 out. `gpt-5` repaired the same box in 24 calls ($0.07). Two seeds per lab say what works, not how
 often; agent results also move with the model and the day.
 
-`shift-handover` is not in the table. Its first live run failed: the reflector never got the
-handover record under its 400-token budget, the agent called it 21 times, and the run cost $0.55
-before its steps ran out. The cost is now bounded in code (two reflector calls, then the record is
-cut to fit, least important lines first, and at most three reflections on request); that version
-has not been run against a live model yet. Produce your own results, with your key or a local
+`shift-handover` came later and took three live runs. The first failed and cost $0.55: the
+reflector never got the record under its 400-token budget and the agent called it 21 times. With
+the cost bounded in code (two reflector calls, then the record is cut to fit; three reflections on
+request), the second scored 4 of 7: the observer restated old items under new dates and the
+assistant searched the wrong scope. With those fixed, the third, on 24 October at low effort, was
+accepted on its second submission for $0.05. Produce your own results, with your key or a local
 model:
 
 ```bash

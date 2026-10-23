@@ -27,12 +27,15 @@ import json
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
+from typing import TypeVar
 
 from ..core.retrieval import HybridIndex
 from ..core.tokens import estimate_tokens
 
 STATUSES = ("open", "resolved", "unconfirmed", "info")
 SCOPE = re.compile(r"^(plant|line-\d+|asset:[a-z0-9][a-z0-9 -]{0,40}|person:[a-z][a-z -]{0,30})$")
+
+T = TypeVar("T")
 
 # (system, user, purpose) -> the model's text. The caller decides how calls are made and costed.
 ModelCall = Callable[[str, str, str], str]
@@ -42,14 +45,18 @@ one new piece of material, such as a shift's log. Write what later shifts must k
 {"observations": [{"scope": "...", "status": "...", "text": "..."}]}
 
 - scope is exactly one of: "plant", "line-<n>", "asset:<machine name in lower case>",
-  "person:<first name in lower case>".
+  "person:<first name in lower case>". A machine is asset:<machine> (asset:press 2); a sensor or
+  anything else that belongs to a line goes under that line (line-3).
 - status is one of: "open" (needs action or follow-up), "resolved" (an earlier item is now done or
   undone), "unconfirmed" (a suspicion nobody has checked), "info" (a standing request or fact).
+- Write only what this material adds or changes. Do not restate an item that is already in the
+  memory unless this material changes it; its first date is what later questions ask about.
 - Keep faults, temporary fixes, bypasses, parts on order, changed limits or settings, requests from
   people, and anything that resolves or changes an earlier item. Skip routine work: checks and
-  rounds that found nothing, cleared jams, changeovers, top-ups.
-- At most three observations, each one sentence under 20 words that is understood without the
-  log: name the machine, its line, and the numbers or part numbers. An empty list is fine.
+  rounds that found nothing, cleared jams, changeovers, top-ups, fuses. Never pad: most shifts
+  add zero to three observations.
+- Each observation is one sentence under 20 words that is understood without the log: name the
+  machine, its line, and the numbers or part numbers.
 - Never state as fact what the log only suspects.
 Return only the JSON."""
 
@@ -164,8 +171,8 @@ class ObservationalMemory:
         return "\n".join(part for part in (self.record, pending) if part) or "(empty)"
 
     def recall(self, query: str, scope: str | None = None, k: int = 5) -> list[Observation]:
-        """Observations about ``query``, newest first among equals; ``scope`` narrows the search."""
-        pool = [o for o in self.journal if scope is None or o.scope == scope.strip().lower()]
+        """Observations about ``query``. ``scope`` narrows the search when anything matches it."""
+        pool = in_scope(self.journal, scope, key=lambda o: o.scope) or list(self.journal)
         if not pool:
             return []
         hits = HybridIndex([o.line() for o in pool]).search(query, query, k=k)
@@ -183,6 +190,15 @@ class ObservationalMemory:
         self.record = str(data.get("record", ""))
         self.journal = [Observation(**o) for o in _dicts(data.get("journal"))]
         self._pending = [Observation(**o) for o in _dicts(data.get("pending"))]
+
+
+def in_scope(items: Sequence[T], scope: str | None, key: Callable[[T], str]) -> list[T]:
+    """Items whose scope matches: exactly, or by name ("press 2" finds "asset:press 2")."""
+    if not scope:
+        return list(items)
+    wanted = normalise_scope(scope)
+    name = wanted.split(":", 1)[-1]
+    return [i for i in items if key(i) == wanted or (name and name in key(i))]
 
 
 _KEEP_ORDER = {"open": 0, "unconfirmed": 1, "info": 2, "resolved": 3}

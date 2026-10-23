@@ -17,7 +17,7 @@ from ...core.retrieval import HybridIndex
 from ...core.tokens import estimate_tokens
 from ...core.tools import ToolError
 from ...core.verdict import Verdict
-from ...memory.observational import SCOPE, STATUSES
+from ...memory.observational import SCOPE, STATUSES, in_scope
 from .logs import LABELS, build
 
 HANDOVER_BUDGET = 400
@@ -66,15 +66,22 @@ class ShiftHandoverEnv(LabEnv):
         return {"shift": LABELS[index], "log": self.logs[index], "shifts_left": len(self.logs) - self.position}
 
     def keep(self, observations: list[dict[str, str]]) -> dict[str, int]:
+        """Store observations; one that repeats a kept one word for word is not stored again."""
         self._api("keep")
+        seen = {(o["scope"], _tag(o["text"])) for o in self.kept}
+        repeats = 0
         for o in observations:
             scope, status = str(o.get("scope", "")).lower(), str(o.get("status", "")).lower()
             if not SCOPE.match(scope) or status not in STATUSES or not str(o.get("text", "")).strip():
                 raise ToolError(f"Invalid observation {o!r}.", hint="scope, status and text are required.")
+            if (scope, _tag(str(o["text"]))) in seen:
+                repeats += 1
+                continue
+            seen.add((scope, _tag(str(o["text"]))))
             self.kept.append(
                 {"when": str(o.get("when", "")), "scope": scope, "status": status, "text": str(o["text"])[:300]}
             )
-        return {"kept": len(self.kept)}
+        return {"kept": len(self.kept), "repeats_skipped": repeats}
 
     def write_handover(self, text: str) -> dict[str, int]:
         self._api("write_handover")
@@ -96,15 +103,25 @@ class ShiftHandoverEnv(LabEnv):
 
     def read_handover(self) -> dict[str, Any]:
         self._api("read_handover")
-        return {"record": self.handover or "(empty)", "tokens": estimate_tokens(self.handover)}
+        scopes: dict[str, int] = {}
+        for o in self.kept:
+            scopes[o["scope"]] = scopes.get(o["scope"], 0) + 1
+        return {"record": self.handover or "(empty)", "tokens": estimate_tokens(self.handover), "scopes_kept": scopes}
 
     def recall(self, query: str, scope: str | None = None, k: int = 5) -> dict[str, Any]:
         self._api("recall")
-        pool = [o for o in self.kept if scope is None or o["scope"] == scope.strip().lower()]
+        if not self.kept:
+            return {"observations": [], "hint": "Nothing kept yet."}
+        pool = in_scope(self.kept, scope, key=lambda o: o["scope"])
+        result: dict[str, Any] = {}
         if not pool:
-            return {"observations": [], "hint": "Nothing kept for that scope." if scope else "Nothing kept yet."}
-        hits = HybridIndex([f"({o['scope']}) {o['status']}: {o['text']}" for o in pool]).search(query, query, k=k)
-        return {"observations": [pool[int(h["index"])] for h in hits]}
+            pool = list(self.kept)
+            result["hint"] = f"Nothing kept under {scope!r}; searched every scope. read_handover lists the scopes."
+        hits = HybridIndex([f"[{o['when']}] ({o['scope']}) {o['status']}: {o['text']}" for o in pool]).search(
+            query, query, k=k
+        )
+        result["observations"] = [pool[int(h["index"])] for h in hits]
+        return result
 
     def list_questions(self) -> list[dict[str, str]]:
         self._api("list_questions")

@@ -311,7 +311,12 @@ tokens, each failure came back to the agent as an error, and the agent called `r
 until its steps ran out, for $0.55. Now scopes are normalised instead of rejected, the observer
 keeps at most three short observations a shift, a reflection makes at most two model calls and
 then cuts the record to the budget in code (least important lines first, the cut reported), and
-`reflect` can be asked for three times. This version has not been run live yet.
+`reflect` can be asked for three times. The second live run stayed in budget ($0.04) and scored 4
+of 7: the observer restated known items with new dates, which buried when the press 4 leak was
+first reported, and the assistant searched under a scope where nothing was kept. The observer now
+writes only what a shift adds or changes, repeated observations are stored once, and `recall`
+treats a scope as a filter that falls back to every scope. The third run was accepted on its
+second submission, at low effort, for $0.05.
 
 ---
 

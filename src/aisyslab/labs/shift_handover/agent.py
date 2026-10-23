@@ -27,7 +27,7 @@ logs; an observer reads each one and keeps observations. Then call reflect once,
 record (at most {HANDOVER_BUDGET} tokens) covers the whole week, and seal_logs.
 
 Then answer the incoming shift lead's questions from list_questions, using read_handover and
-recall only:
+recall only (read_handover also lists the scopes kept; recall without a scope searches them all):
 - When items conflict, the newest shift wins.
 - A suspicion nobody checked is not a confirmed fault.
 - Keep lines and machines apart: the same sensor name on two lines is two different sensors.
