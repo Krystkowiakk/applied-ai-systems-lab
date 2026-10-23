@@ -59,10 +59,10 @@ the technique is listed here so the map is complete; it is built next.
 | A context budget with token counting before submitting | [`line-incident`](labs.md#line-incident) | built |
 | Compaction: the history is replaced by observations, never edited | `_compact` in [`core/agent.py`](../src/aisyslab/core/agent.py) | built |
 | Separate contexts per agent; documents passed by reference, not pasted | [`shift-briefing`](labs.md#shift-briefing) | built |
-| Long-term memory across sessions: an observer records, a reflector condenses | shift handover memory | planned |
-| Memory scopes (line, asset, person, plant) and facts that supersede older ones | shift handover memory | planned |
-| A working area for new observations; only confirmed facts enter the canonical record | shift handover memory | planned |
-| A knowledge base compressed to fit a token limit, kept readable by people | shift handover memory | planned |
+| Long-term memory across sessions: an observer records, a reflector condenses | [`shift-handover`](labs.md#shift-handover), [`memory/observational.py`](../src/aisyslab/memory/observational.py) | built |
+| Memory scopes (line, asset, person, plant) and facts that supersede older ones | [`shift-handover`](labs.md#shift-handover) | built |
+| A working area for new observations; only the reflector writes the record that goes into prompts | [`shift-handover`](labs.md#shift-handover) | built |
+| A record compressed to a token budget the environment enforces, kept readable by people | [`shift-handover`](labs.md#shift-handover) | built |
 
 ## Retrieval
 

@@ -11,6 +11,7 @@ from .procedures_rag import LAB as PROCEDURES_RAG
 from .quality_gate import LAB as QUALITY_GATE
 from .service_repair import LAB as SERVICE_REPAIR
 from .shift_briefing import LAB as SHIFT_BRIEFING
+from .shift_handover import LAB as SHIFT_HANDOVER
 from .spare_part_run import LAB as SPARE_PART_RUN
 from .supply_intake import LAB as SUPPLY_INTAKE
 
@@ -26,6 +27,7 @@ LABS: dict[str, Lab] = {
         PLANT_DATABASE,
         QUALITY_GATE,
         SHIFT_BRIEFING,
+        SHIFT_HANDOVER,
         PROCEDURES_RAG,
     )
 }

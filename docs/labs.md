@@ -274,6 +274,47 @@ submits, and what the coordination costs compared with the five calls of the gra
 
 ---
 
+## shift-handover
+
+**Question.** On Monday morning the incoming shift lead asks seven questions about last week. The
+assistant answers from its memory of the week; the logs themselves are closed by then.
+
+**Environment.** Fifteen shift logs (Monday to Friday, three shifts), about 4,500 tokens and mostly
+routine. Each log can be read once, in order; then the logs are sealed and the questions open. What
+the solver kept stays in the environment: observations, searchable with `recall`, and a handover
+record of at most 400 tokens, the part that goes into every prompt.
+
+**Traps.** A bypass on line 3 that a later shift removed, while a bypass on line 4 stays; a press
+limit that changed mid-week; three temporary fixes of which one was made permanent, worded as "the
+taped spare is out"; a gearbox suspicion nobody confirmed, ruled out on half the seeds; a routine
+"no leaks seen" on the press whose hose leak is asked about; two part numbers, of which only one is
+still on order; and a question the logs never answer.
+
+**Verifier.** Grades each answer and names the kind of mistake: outdated (true before a later shift
+changed it), machines missing or extra, a suspicion taken as confirmed, or a guess where the answer
+is "not recorded". Score = fraction correct.
+
+**Baseline.** Keyword rules over the logs. They read the wording they were written for, so they
+score 0.80 on average over 20 seeds and are accepted on 3: they take the suspicion for a fault, read
+"no leaks seen" as a leak, and see "the taped spare is out" as a temporary fix.
+
+**Agent.** Observational memory through tools: `observe_next_shift` (the observer, a separate model
+call, reads the log; the agent never sees it), `reflect` (the reflector condenses the observations
+into the record within its budget; it also runs on its own when new observations pass 500 tokens),
+`seal_logs`, then `list_questions`, `read_handover`, `recall` and `submit_answers`. Code:
+[`memory/observational.py`](../src/aisyslab/memory/observational.py).
+
+**What the first live run showed.** With `gpt-5-mini`, the observer kept five to seven long
+observations a shift, routine jams included, and some scopes came back as `asset:press_2`, which
+validation rejected, losing the press limit. The reflector then never fit the record into 400
+tokens, each failure came back to the agent as an error, and the agent called `reflect` 21 times
+until its steps ran out, for $0.55. Now scopes are normalised instead of rejected, the observer
+keeps at most three short observations a shift, a reflection makes at most two model calls and
+then cuts the record to the budget in code (least important lines first, the cut reported), and
+`reflect` can be asked for three times. This version has not been run live yet.
+
+---
+
 ## procedures-rag
 
 **Question.** Seven questions from a maintenance technician, answered from the plant's procedures

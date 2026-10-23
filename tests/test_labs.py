@@ -21,7 +21,8 @@ from aisyslab.labs.service_repair.env import ROOT, ServiceRepairEnv
 from aisyslab.labs.spare_part_run.env import SparePartRunEnv, solve_grid
 from aisyslab.labs.supply_intake.env import SupplyIntakeEnv, count_bins, sniff
 
-DETERMINISTIC = [lab_id for lab_id in LABS if lab_id != "procedures-rag"]
+# Labs where plain code is expected to solve every seed; in the other two it only gets part.
+DETERMINISTIC = [lab_id for lab_id in LABS if lab_id not in ("procedures-rag", "shift-handover")]
 NO_SLEEP = RetryPolicy(sleep=lambda _s: None)
 
 

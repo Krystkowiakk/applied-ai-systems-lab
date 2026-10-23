@@ -24,8 +24,8 @@ code and by an agent. On real work the useful question is rarely "can a model do
 | [`maintenance-portal`](docs/labs.md#maintenance-portal) | Re-code one work order and close another | prompt injection handled by design, human approval |
 | [`quality-gate`](docs/labs.md#quality-gate) | Which of tonight's batches pass the gate? | classic ML in code, target leakage |
 | [`shift-briefing`](docs/labs.md#shift-briefing) | One report from three investigations | an orchestrator and specialists, a shared workspace |
+| [`shift-handover`](docs/labs.md#shift-handover) | What does the next shift need to know? | observational memory, scopes, facts that supersede older ones |
 | [`procedures-rag`](docs/labs.md#procedures-rag) | What do the procedures say? Answer, cite, or say it is not covered | hybrid retrieval, search across languages, checked citations |
-| Shift handover memory *(planned)* | What does the next shift need to know? | long-term memory, scopes, facts that supersede older ones |
 | Quality claim assistant *(planned)* | A customer complaint about a batch, answered and logged | data classification, anonymisation, moderation, a topic guard, an audit log |
 | Voice on the shop floor *(planned)* | Voice notes at the machine, a spoken briefing for the shift lead | speech-to-text with plant vocabulary, text-to-speech, a voice agent |
 | Visual work instructions *(planned)* | An instruction card for a maintenance step | image generation, a template in code, a vision check |
@@ -57,7 +57,7 @@ examples are designed and listed there so the map is complete; they are built ne
 
 ## What the baselines show
 
-Measured with `aisyslab bench --seeds 0-19`: 200 runs, no model, no API key, under two seconds.
+Measured with `aisyslab bench --seeds 0-19`: 220 runs, no model, no API key, about two seconds.
 
 | Lab | Baseline accepted | Score | API calls / run | What decides it |
 |---|---|---|---|---|
@@ -70,15 +70,17 @@ Measured with `aisyslab bench --seeds 0-19`: 200 runs, no model, no API key, und
 | `plant-database` | 20/20 | 1.00 | 2 | A known question is one SQL statement; the agent first has to find where the answer lives |
 | `quality-gate` | 20/20 | 1.00 | 3 | A decision tree learns the lab's thresholds from 240 batches; reading numbers is code's job |
 | `shift-briefing` | 20/20 | 1.00 | 5 | When the plan is known, a parallel graph of three queries beats a team of agents |
+| `shift-handover` | 3/20 | 0.80 | 21 | Keyword rules read the wording they were written for; a suspicion, a "no leaks seen" and a "spare is out" fool them |
 | `procedures-rag` | 0/20 | 0.53 | 14 | Code gets the plain lookups and misses every question that needs reading: an exception, a date, Polish, a "does not" that means yes |
 
-Nine of the ten problems fall to under 90 lines of code each (the quality gate also uses a
+Nine of the eleven problems fall to under 90 lines of code each (the quality gate also uses a
 125-line decision tree, the same one the agent trains through a tool), on every seed, with zero
 tokens. The same baselines pass with 20% of API calls failing, because retries live in code. In
 those labs an agent has to justify itself on flexibility, not capability: what happens when the
 email is phrased differently, the fault is new, the map changes, the planner asks another question.
-The last lab is where the model earns its place, and the agent there is graded on value **and**
-citation.
+In the last two, code gets part of the way and no further: keyword rules over a week of shift logs
+and pattern extraction over procedures both fail exactly the questions that need reading. That is
+where the model earns its place, and the agents there are graded on every answer.
 
 ## What the agents did
 
@@ -103,8 +105,14 @@ milliseconds. The tenth shows why the verifiers count more than the final answer
 `service-repair` the model read the deny list, opened a path on it anyway, was blocked by the
 shell, guessed an API token and overwrote the wrong lines of the config, until its 30 steps ran
 out. `gpt-5` repaired the same box in 24 calls ($0.07). Two seeds per lab say what works, not how
-often; agent results also move with the model and the day. Produce your own, with your key or a
-local model:
+often; agent results also move with the model and the day.
+
+`shift-handover` is not in the table. Its first live run failed: the reflector never got the
+handover record under its 400-token budget, the agent called it 21 times, and the run cost $0.55
+before its steps ran out. The cost is now bounded in code (two reflector calls, then the record is
+cut to fit, least important lines first, and at most three reflections on request); that version
+has not been run against a live model yet. Produce your own results, with your key or a local
+model:
 
 ```bash
 aisyslab bench --solvers baseline,agent --provider openai --model gpt-5-mini --seeds 0-4
@@ -118,14 +126,14 @@ cd applied-ai-systems-lab
 python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
 
-aisyslab list                     # the ten labs
+aisyslab list                     # the eleven labs
 aisyslab show supply-intake       # scenario, techniques, where it comes from
 aisyslab run supply-intake        # the baseline, streaming its trace
 aisyslab bench --seeds 0-4        # every baseline on five seeds
 aisyslab eval optimize            # prompt optimisation, offline stand-ins
 aisyslab tenant demo              # a token for the service (shown once)
 aisyslab serve --demo             # the service and its web UI on :8000, without a model
-pytest                            # 235 offline tests
+pytest                            # 246 offline tests
 ```
 
 With a model (keys are read from the environment, never from files in the repo):
@@ -162,6 +170,7 @@ aisyslab trace runs/traces/<file>.jsonl                                         
 | [`plant-database`](docs/labs.md#plant-database) | Which line-3 work orders cannot start because a spare part is short? | Stock split across storerooms and partly reserved, a superseded part number, a stale "waiting parts" status, two assets moved between lines, and a database that refuses writes |
 | [`quality-gate`](docs/labs.md#quality-gate) | Which of tonight's batches pass the quality gate? | A rule nobody wrote down, 240 inspected batches, a column filled in only after the inspection (target leakage), two sensor dropouts, rare failures above the upper torque limit |
 | [`shift-briefing`](docs/labs.md#shift-briefing) | Where did tonight's stoppage start, which work orders are blocked, which batches are held? | Three systems, specialists that cannot see each other's context, and a verifier that names the wrong section but not the items |
+| [`shift-handover`](docs/labs.md#shift-handover) | What does Monday's morning shift need to know from last week's fifteen shift logs? | Logs read once and sealed, a 400-token handover record, a bypass removed later, a limit that changed, a temporary fix made permanent, a suspicion nobody confirmed, the same sensor on two lines |
 | [`procedures-rag`](docs/labs.md#procedures-rag) | A technician's questions about torque, lockout, permits and calibration, answered from the plant's procedures. | A superseded revision, an exception that overrides the rule, a calibration date to compute, a question in Polish, one the procedures do not answer |
 
 Each lab's techniques, traps and design choices are in [docs/labs.md](docs/labs.md). Beyond the
