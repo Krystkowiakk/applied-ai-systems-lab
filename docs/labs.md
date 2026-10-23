@@ -200,6 +200,32 @@ checked), `submit_answer`. See [research.md](research.md).
 
 ---
 
+## parts-graph
+
+**Question.** A supplier writes that a part will not ship for three weeks. Which lines does that hold
+up today, which open orders due before then are at risk, and which can still be built with an
+approved alternate part?
+
+**Environment.** Six tables (bill of materials, installation register, layout, line plan, order
+book, part master) and seven to nine notes: the delay notice, engineering change notes, changeover
+notes, planning minutes, logbook entries, a price letter and a lubrication note. Each seed draws one
+to three traps into the notes: a machine on the path moved to another line; a move planned for next
+month; an assembly with the part taken off its machine and sent to stores; a logbook saying a machine
+does *not* use an assembly with the part; an alternate approved for both assemblies, then withdrawn
+for one.
+
+**Verifier.** Three sets: the lines held up, the orders at risk, the orders an alternate saves. It
+says how many are missing or extra in each, and when an order is listed as both, never which.
+
+**Baseline.** The same graph, with the notes read by patterns and dated by the note. Accepted only
+on a seed whose one trap is a plain move.
+
+**Agent.** `build_graph` (tables by code, one extraction call per note, a parser, one repair),
+`walk`, `edges`, `read_document`, `search_documents`, `correct_graph`, `submit_impact`. See
+[graph.md](graph.md).
+
+---
+
 ## plant-database
 
 **Question.** Which open corrective work orders on line 3 cannot start tonight because a required

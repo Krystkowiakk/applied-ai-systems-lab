@@ -40,7 +40,7 @@ code and by an agent. On real work the useful question is rarely "can a model do
 | [Ticket triage](docs/evals.md) | Maintenance tickets to failure codes and priorities | eval sets, a calibrated judge, model comparison, prompt optimisation |
 | [`production-schedule`](docs/labs.md#production-schedule) | Tomorrow's orders on three presses, with the planner's notes | code mode: the model writes a program that plans, run in a sandbox |
 | [`part-research`](docs/labs.md#part-research) | A component is discontinued: what replaces it, from whom, how fast? | web search, a polite crawler, a deep research loop, a cited report |
-| Asset and parts graph *(planned)* | Which lines and orders does a late part affect? | graph RAG |
+| [`parts-graph`](docs/labs.md#parts-graph) | A supplier delays a part: which lines and orders does it hold up, and which can an alternate save? | graph RAG, extraction validated by a parser, facts with dates |
 | Fine-tuned triage *(planned)* | The triage model, trained instead of prompted | fine-tuning compared with prompting |
 
 **Software building**
@@ -57,7 +57,7 @@ examples are designed and listed there so the map is complete; they are built ne
 
 ## What the baselines show
 
-Measured with `aisyslab bench --seeds 0-19`: 280 runs, no model, no API key, about two seconds.
+Measured with `aisyslab bench --seeds 0-19`: 300 runs, no model, no API key, about two seconds.
 
 | Lab | Baseline accepted | Score | API calls / run | What decides it |
 |---|---|---|---|---|
@@ -68,6 +68,7 @@ Measured with `aisyslab bench --seeds 0-19`: 280 runs, no model, no API key, abo
 | `spare-part-run` | 20/20 | 1.00 | 5 | Planning on a fully specified map is search, and search is exact |
 | `maintenance-portal` | 20/20 | 1.00 | 6 | Code never reads the injected comment, so it cannot obey it |
 | `part-research` | 0/20 | 0.20 | 8 | The top hit for the question is a forum post with the wrong valve; patterns take what they find first |
+| `parts-graph` | 1/20 | 0.22 | 16 | Patterns read a plain changeover; a planned move, an assembly sent to stores, a "does not use" and a withdrawn approval fool them |
 | `plant-database` | 20/20 | 1.00 | 2 | A known question is one SQL statement; the agent first has to find where the answer lives |
 | `production-schedule` | 2/20 | 0.20 | 2 | The due-date rule cannot read the planner's notes, and plain due-date order is often far from a searched plan |
 | `quality-gate` | 20/20 | 1.00 | 3 | A decision tree learns the lab's thresholds from 240 batches; reading numbers is code's job |
@@ -76,15 +77,15 @@ Measured with `aisyslab bench --seeds 0-19`: 280 runs, no model, no API key, abo
 | `shift-handover` | 3/20 | 0.80 | 21 | Keyword rules read the wording they were written for; a suspicion, a "no leaks seen" and a "spare is out" fool them |
 | `procedures-rag` | 0/20 | 0.53 | 14 | Code gets the plain lookups and misses every question that needs reading: an exception, a date, Polish, a "does not" that means yes |
 
-Nine of the fourteen problems fall to under 90 lines of code each (the quality gate also uses a
+Nine of the fifteen problems fall to under 90 lines of code each (the quality gate also uses a
 125-line decision tree, the same one the agent trains through a tool), on every seed, with zero
 tokens. The same baselines pass with 20% of API calls failing, because retries live in code. In
 those labs an agent has to justify itself on flexibility, not capability: what happens when the
 email is phrased differently, the fault is new, the map changes, the planner asks another question.
-In the other five, code gets part of the way and no further: keyword rules over customer claims,
+In the other six, code gets part of the way and no further: keyword rules over customer claims,
 over a week of shift logs and over procedures fail exactly where the text has to be read, a fixed
-planning rule cannot read the planner's notes, and the first search hit is not the answer. That is
-where the model earns its place.
+planning rule cannot read the planner's notes, the first search hit is not the answer, and patterns
+cannot tell a done change from a planned one. That is where the model earns its place.
 
 ## What the agents did
 
@@ -120,8 +121,10 @@ accepted on its second submission for $0.05. `quality-claims`, also added later,
 its first submission (seed 0, low effort, OpenAI's moderation) for about a cent,
 `production-schedule` on its second, after it was told its plan was too late and wrote a search, and
 `part-research` on its fifth, after a verifier bug that had rejected its first, correct answer was
-fixed ([research.md](docs/research.md#what-the-live-runs-showed)). Produce your own
-results, with your key or a local model:
+fixed ([research.md](docs/research.md#what-the-live-runs-showed)). `parts-graph` failed its first
+run, when every extracted fact was rejected over a prompt that showed type names, and was accepted
+on its second submission after the fix ([graph.md](docs/graph.md#what-the-live-runs-showed)).
+Produce your own results, with your key or a local model:
 
 ```bash
 aisyslab bench --solvers baseline,agent --provider openai --model gpt-5-mini --seeds 0-4
@@ -135,14 +138,14 @@ cd applied-ai-systems-lab
 python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
 
-aisyslab list                     # the fourteen labs
+aisyslab list                     # the fifteen labs
 aisyslab show supply-intake       # scenario, techniques, where it comes from
 aisyslab run supply-intake        # the baseline, streaming its trace
 aisyslab bench --seeds 0-4        # every baseline on five seeds
 aisyslab eval optimize            # prompt optimisation, offline stand-ins
 aisyslab tenant demo              # a token for the service (shown once)
 aisyslab serve --demo             # the service and its web UI on :8000, without a model
-pytest                            # 277 offline tests
+pytest                            # 307 offline tests
 ```
 
 With a model (keys are read from the environment, never from files in the repo):
@@ -179,6 +182,7 @@ aisyslab trace runs/traces/<file>.jsonl                                         
 | [`spare-part-run`](docs/labs.md#spare-part-run) | Get a spare pump to the stopped line before the deadline. | Forklift battery vs walking time, one-way dismount, no-go zones, rules hidden in documents that must be found first |
 | [`maintenance-portal`](docs/labs.md#maintenance-portal) | Re-code one work order and close another. | A supplier comment that orders "AI assistants" to close everything; closing needs a human's approval token |
 | [`part-research`](docs/labs.md#part-research) | Which replacement for a discontinued valve can we get fastest, and how sure are we? | A forum answer recommending the wrong valve, a superseded datasheet, an archived lead time, a page behind robots.txt, and a report whose citations are checked |
+| [`parts-graph`](docs/labs.md#parts-graph) | A supplier delays a part three weeks: which lines does it hold up, which orders are at risk, which can an approved alternate save? | The answer runs across five documents; notes say a machine moved, an assembly went to stores, an approval was withdrawn, or only that a move is planned or that a machine does not use an assembly |
 | [`plant-database`](docs/labs.md#plant-database) | Which line-3 work orders cannot start because a spare part is short? | Stock split across storerooms and partly reserved, a superseded part number, a stale "waiting parts" status, two assets moved between lines, and a database that refuses writes |
 | [`production-schedule`](docs/labs.md#production-schedule) | Plan tomorrow's sixteen orders on three presses. | Changeovers, a maintenance window, presses that cannot run every family, and two notes from the planner in plain words that a fixed rule never reads |
 | [`quality-gate`](docs/labs.md#quality-gate) | Which of tonight's batches pass the quality gate? | A rule nobody wrote down, 240 inspected batches, a column filled in only after the inspection (target leakage), two sensor dropouts, rare failures above the upper torque limit |

@@ -76,8 +76,9 @@ the technique is listed here so the map is complete; it is built next.
 | Chunks cut along the document's structure (sections), with metadata on every chunk | [`procedures-rag`](labs.md#procedures-rag) | built |
 | Source metadata (edition, status) to avoid superseded documents | [`procedures-rag`](labs.md#procedures-rag) | built |
 | Text-to-SQL after schema discovery; the computation done by the database | [`plant-database`](labs.md#plant-database) | built |
-| Graph RAG: when the relations are the knowledge, traversal tools instead of similarity | asset and parts graph | planned |
-| Extraction from documents into a structured store, validated by a parser | asset and parts graph | planned |
+| Graph RAG: when the relations are the knowledge, traversal tools instead of similarity | [`parts-graph`](labs.md#parts-graph), [graph](graph.md#traversal-tools) | built |
+| Extraction from documents into a structured store, validated by a parser; rejected lines sent back with a reason | [`graph/extract.py`](../src/aisyslab/graph/extract.py), [graph](graph.md#tables-by-code-notes-by-a-model-both-checked) | built |
+| Facts with dates: since and until, functional relations, planned changes that do not count yet | [`graph/store.py`](../src/aisyslab/graph/store.py), [graph](graph.md#time-on-the-edges) | built |
 | A web search API behind one interface (offline index, or a search model on the real web) and a polite crawler | [research](research.md#one-search-interface-two-backends), `aisyslab search` | built |
 | Deep research loop: search, read, note with sources, name the gaps, search again | [`part-research`](labs.md#part-research) | built |
 | A long report written from an outline, section by section, every citation checked in code | [research](research.md#a-long-report-section-by-section) | built |
