@@ -154,3 +154,36 @@ def test_openai_stream_passes_deltas_on_and_estimates_missing_usage() -> None:
     )
     assert pieces == ["Hi ", "there"] and turn.text == "Hi there" and turn.usage.output_tokens > 0
     assert "stream_options" not in sent and sent["max_tokens"] == 4096
+
+
+def test_openai_stream_that_hits_the_length_limit_is_a_truncated_turn() -> None:
+    from aisyslab.providers.openai_chat import OpenAIChatModel
+
+    partial = NS(
+        choices=[
+            NS(message=NS(content="The blocked orders are", refusal=None, tool_calls=None), finish_reason="length")
+        ],
+        usage=None,
+        model="m",
+    )
+
+    class LengthLimit(Exception):
+        def __init__(self, completion: object) -> None:
+            super().__init__("length limit")
+            self.completion = completion
+
+    class Stream:
+        def __iter__(self) -> object:
+            raise LengthLimit(partial)  # what the SDK's stream helper does at the limit
+
+    model = OpenAIChatModel.__new__(OpenAIChatModel)
+    model.model, model.reasoning_effort, model.temperature = "m", None, None
+    model.token_param, model.stream_usage = "max_completion_tokens", True
+    model._openai = NS(APIError=type("APIError", (Exception,), {}), LengthFinishReasonError=LengthLimit)
+    sent: dict = {}
+    model._client = NS(chat=NS(completions=NS(stream=lambda **kw: sent.update(kw) or _Manager(Stream()))))
+    turn = model.complete_stream(
+        system="s", messages=[Message(role="user", content="hi")], tools=[], on_text=lambda _t: None
+    )
+    assert turn.stop_reason == "max_tokens" and turn.text == "The blocked orders are"
+    assert sent["max_completion_tokens"] == 16000  # reasoning needs room before the answer

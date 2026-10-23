@@ -44,8 +44,8 @@ def routed(lab: Lab, *, via_mcp: bool = False, discover: bool = False, promptles
                 box = host.toolbox()
             else:
                 box = spec.toolbox(env, model, ctx)
-            if discover:
-                box = discovery_toolbox(box)
+            if discover:  # the answer tools stay in the list; a model will not search for them
+                box = discovery_toolbox(box, pinned=[n for n in box.names() if n.split("__")[-1].startswith("submit")])
             return run_agent(
                 model=model,
                 system="" if promptless else spec.system,

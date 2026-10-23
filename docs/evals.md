@@ -82,6 +82,31 @@ descriptions and schemas do on their own.
 aisyslab bench plant-database --solver agent --provider openai --promptless
 ```
 
+## A live run: what the numbers hid
+
+Run on 23 October 2026 with `gpt-5-nano` and `gpt-5-mini` at low effort, for $0.08 in total:
+
+| Model | code | priority |
+|---|---|---|
+| `gpt-5-nano` | 0.99 | 0.91 |
+| `gpt-5-mini` | 0.98 | 0.64 |
+
+The larger model scored lower, and the item-level results (saved in the run's JSON) said why:
+all 32 of its priority misses were 2 marked as 1, each with a reason such as "a slip hazard" or
+"a fire risk". The prompt said "priority 1 when there is a safety risk", and the model read it as
+any risk it could infer, while the labels count only a risk the operator reported. The rule now
+says so ("do not escalate on a risk you infer"); the same model then scored 1.00 on priority, with
+32 items fixed and none broken.
+
+The judge showed the same thing. Calibrated against the 12 human labels, `gpt-5-mini` agreed on 9
+(kappa 0.50); every disagreement was a reason with a hedged likely cause ("points to the bearing")
+that the judge called invented and the human accepted. With the rubric saying that a likely cause
+worded as such is fine, it agreed on all 12. Twelve labels are enough to find a rubric problem,
+not to prove a judge reliable.
+
+The optimiser had nothing to do: `gpt-5-nano` started at 1.00 on the training split. The loop's
+job is the opposite case, a weak model or a narrow prompt, which the offline stand-ins show.
+
 ## Offline stand-ins
 
 Without `--provider` the commands use deterministic stand-ins, labelled as such in the output:

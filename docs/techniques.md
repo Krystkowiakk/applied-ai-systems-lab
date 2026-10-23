@@ -37,7 +37,7 @@ the technique is listed here so the map is complete; it is built next.
 | The contract discovered first: `help`, the database schema, the documents | [`service-repair`](labs.md#service-repair), [`plant-database`](labs.md#plant-database), [`spare-part-run`](labs.md#spare-part-run) | built |
 | Safeguards inside the tool, not in the prompt: read-only engine, approval token | [`plant-database`](labs.md#plant-database), [`maintenance-portal`](labs.md#maintenance-portal) | built |
 | Tools shaped by the questions they must answer; their names, descriptions and schemas measured without the system prompt | every lab, `--promptless` ([evals](evals.md#tool-descriptions-as-a-prompt)) | built |
-| Two tools instead of a long list: `search_tools` and `call_tool` | [`mcp/discovery.py`](../src/aisyslab/mcp/discovery.py) | built |
+| Two tools instead of a long list: `search_tools` and `call_tool`, with the answer tools pinned | [`mcp/discovery.py`](../src/aisyslab/mcp/discovery.py) | built |
 | Exact formats (records, reports) rendered by code from the fields the model fills | quality claim assistant | planned |
 | Tools as a library: the agent writes code that calls them, instead of one call per step | production schedule | planned |
 
@@ -119,6 +119,7 @@ the technique is listed here so the map is complete; it is built next.
 | Graders: code where code can decide, a model judge only for the rest | [evals](evals.md) | built |
 | The judge calibrated against human labels: agreement, Cohen's kappa, disagreements | [evals](evals.md) | built |
 | Models compared side by side before a migration; regressions listed item by item | [evals](evals.md) | built |
+| Error analysis: every item's output saved and read before a score is trusted | [evals](evals.md#a-live-run-what-the-numbers-hid) | built |
 | Prompt optimisation checked on a holdout; prompts versioned by hash | [evals](evals.md) | built |
 | An agent's instructions drafted by a meta-prompt from an interview with the process owner | ticket triage | planned |
 | Classic ML instead of a model where the answer is in labelled numbers | [`quality-gate`](labs.md#quality-gate) | built |

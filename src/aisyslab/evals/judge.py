@@ -17,8 +17,10 @@ from ..core.model import ChatModel
 from ..core.tokens import estimate_tokens
 
 RUBRIC = (
-    "PASS if the reason names the symptom the operator reported and invents nothing that is not in the "
-    "ticket. FAIL if it is vague, names a different symptom, or adds facts."
+    "PASS if the reason names the symptom the operator reported and invents no facts: a likely cause "
+    "worded as a likely cause ('points to', 'likely', 'suspected') is fine. FAIL if it is vague, names a "
+    "different symptom, or states something as a fact that the ticket does not say (people, readings, "
+    "alarms, events)."
 )
 JUDGE_SYSTEM = """You grade one answer against a rubric. Reply with PASS or FAIL on the first line and
 one short sentence explaining why on the second.

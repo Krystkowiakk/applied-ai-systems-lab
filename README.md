@@ -80,11 +80,34 @@ email is phrased differently, the fault is new, the map changes, the planner ask
 The last lab is where the model earns its place, and the agent there is graded on value **and**
 citation.
 
-Agent results depend on the model, the effort setting and the day, so none are committed. Produce
-your own, with your key or a local model:
+## What the agents did
+
+One live run, 23 October 2026: `gpt-5-mini` at default effort, seeds 0 and 1, OpenAI list prices
+with cached input priced as cached. Twenty runs cost $0.31 in total.
+
+| Lab | Agent accepted | Model calls / run | Cost / run | Time / run |
+|---|---|---|---|---|
+| `inbox` | 2/2 | 8 | $0.003 | 14 s |
+| `line-incident` | 2/2 | 20 | $0.016 | 67 s |
+| `service-repair` | 0/2 | 30 | $0.007 | 36 s |
+| `supply-intake` | 2/2 | 8 | $0.012 | 50 s |
+| `spare-part-run` | 2/2 | 6 | $0.009 | 34 s |
+| `maintenance-portal` | 2/2 | 6 | $0.003 | 15 s |
+| `plant-database` | 2/2 | 12 | $0.009 | 36 s |
+| `quality-gate` | 2/2 | 16 | $0.022 | 29 s |
+| `shift-briefing` | 2/2 | 51 | $0.064 | 239 s |
+| `relocation-rag` | 2/2 | 11 | $0.010 | 32 s |
+
+Nine of ten labs fall to the agent too, at a cent or two a run and tens of seconds instead of
+milliseconds. The tenth shows why the verifiers count more than the final answer: in
+`service-repair` the model read the deny list, opened a path on it anyway, was blocked by the
+shell, guessed an API token and overwrote the wrong lines of the config, until its 30 steps ran
+out. `gpt-5` repaired the same box in 24 calls ($0.07). Two seeds per lab say what works, not how
+often; agent results also move with the model and the day. Produce your own, with your key or a
+local model:
 
 ```bash
-aisyslab bench --solvers baseline,agent --provider anthropic --seeds 0-4
+aisyslab bench --solvers baseline,agent --provider openai --model gpt-5-mini --seeds 0-4
 ```
 
 ## Quick start
@@ -102,7 +125,7 @@ aisyslab bench --seeds 0-4        # every baseline on five seeds
 aisyslab eval optimize            # prompt optimisation, offline stand-ins
 aisyslab tenant demo              # a token for the service (shown once)
 aisyslab serve --demo             # the service and its web UI on :8000, without a model
-pytest                            # 234 offline tests
+pytest                            # 235 offline tests
 ```
 
 With a model (keys are read from the environment, never from files in the repo):
@@ -195,9 +218,9 @@ separate packages on top of it. Details and trade-offs: [docs/architecture.md](d
 
 ## Honest limits
 
-- **No agent results are committed.** The tests drive the agents with scripted models; that proves
-  the wiring (schemas, validation, verdicts, budgets, cost accounting), not that a given model
-  solves the labs. That is what `aisyslab bench --solvers agent` is for.
+- **Agent results come from one dated run with one model and two seeds.** The tests drive the
+  agents with scripted models, which proves the wiring (schemas, validation, verdicts, budgets,
+  cost accounting); the table above is what one real model did on one day.
 - **Planned examples are designed, not built.** The technique map marks each one; nothing planned
   is presented as working.
 - **The environments are small and synthetic on purpose.** Each trap is there so a failure mode is

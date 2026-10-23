@@ -47,9 +47,20 @@ def run(args: argparse.Namespace) -> int:
         table = to_markdown(reports)
         print(table)
         (args.out / f"triage-{stamp}.md").write_text(table + "\n", encoding="utf-8")
-        (args.out / f"triage-{stamp}.json").write_text(
-            json.dumps([r.summary() | {"confusion": r.confusion()} for r in reports], indent=2), encoding="utf-8"
-        )
+        by_id = {t.id: t for t in tickets}
+        details = [
+            r.summary()
+            | {
+                "confusion": r.confusion(),
+                # every item, so disagreements can be read, not just counted
+                "items": [
+                    {"ticket": by_id[i.ticket_id].text, "priority": by_id[i.ticket_id].priority} | asdict(i)
+                    for i in r.items
+                ],
+            }
+            for r in reports
+        ]
+        (args.out / f"triage-{stamp}.json").write_text(json.dumps(details, indent=2), encoding="utf-8")
         return 0
 
     executor = RuleFollowerModel() if offline else _model(args, args.model)

@@ -1,7 +1,8 @@
 ---
 description: How to build the morning briefing from the collected reports. Read it before writing.
 ---
-1. One section per question, in this order: stoppage, blocked work orders, held batches.
+1. One section per question, in this order: stoppage, blocked work orders, quality gate (the
+   batches released; every other batch of tonight is held).
 2. Each section states the finding in one or two sentences and says whether the collector's check
    verified it.
 3. A report that is missing or failed stays missing: write "MISSING: <collector> (<status>)" in its

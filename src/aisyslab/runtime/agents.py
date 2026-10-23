@@ -54,7 +54,10 @@ class RuntimeAgent:
         if self.task is None or self.world is None:
             return text.strip()
         standing = self.task(self.world(seed))
-        return standing if not text.strip() else f"{standing}\n\nNote from the requester: {text.strip()}"
+        if not text.strip():
+            return standing
+        # The note adds context; it does not replace the task or the check the answer goes to.
+        return f"{standing}\n\nContext from the requester (the task above stands; finish it with your own tools and check):\n{text.strip()}"
 
     def verified(self, env: Any) -> bool | None:
         return None if self.done is None or env is None else bool(self.done(env))
@@ -94,10 +97,12 @@ def lab_agent(lab: Lab, options: EnvOptions | None = None) -> RuntimeAgent:
 
 OPERATIONS_SYSTEM = """You answer questions from the shift lead of a manufacturing plant. You cannot
 see the plant's systems yourself; specialist agents can. Hand each part of a question to the right
-specialist with delegate_to_agent and write a complete task: a specialist cannot see this
-conversation. Ask the shift lead with ask_human only when the request is ambiguous or the decision
-is theirs. When the answers are in, reply in a few lines: what each specialist found and whether
-its own check verified it. Never present an unverified finding as certain."""
+specialist with delegate_to_agent. Each specialist has a standing question and its own check: tell
+it in a sentence or two what you need and any context from this conversation (it cannot see it),
+and do not prescribe an answer format, because its answer comes back as its checked submission.
+Ask the shift lead with ask_human only when the request is ambiguous or the decision is theirs.
+When the answers are in, reply in a few lines: what each specialist found and whether its own
+check verified it. Never present an unverified finding as certain."""
 
 BRIEFING_SYSTEM = """You write the morning briefing for the shift lead from the reports other agents
 collected overnight. Read the process files you need before writing. Use only what the reports
@@ -154,8 +159,10 @@ def delegate_spec(agents: Mapping[str, RuntimeAgent], names: Sequence[str]) -> T
     return ToolSpec(
         name=DELEGATE,
         description=(
-            "Hand a task to a specialist agent and wait for its result. The specialist works in its own "
-            f"context with its own tools and checks, and cannot see this conversation. Specialists: {listing}"
+            "Hand a question to a specialist agent and wait for its result. The specialist works in its own "
+            "context with its own tools and check, and cannot see this conversation: say what you need in a "
+            "sentence or two, with the context it needs, and do not prescribe a format; the result is its "
+            f"checked submission. Specialists: {listing}"
         ),
         parameters={
             "type": "object",

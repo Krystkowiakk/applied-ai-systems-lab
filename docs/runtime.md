@@ -152,6 +152,23 @@ scheduler passes the collect step to each collector in its first message.
 answer questions, send messages that queue, branch from any earlier message, cancel, classify a
 ticket, and see the tenant's token use. Model output is inserted as text, never as HTML.
 
+## What a live run changed
+
+Run against `gpt-5-mini` (agents) and `gpt-5-nano` (triage) on 23 October 2026, for about $0.20:
+the operations assistant delegated to the plant-database agent, streamed its answer and returned
+the five blocked work orders with the specialist's check passed; repeated triage tickets came
+from the cache; and the morning briefing assembled three verified reports. The first attempt
+found two problems that scripted tests could not:
+
+- **The length limit in a stream.** OpenAI's stream helper raises at the length limit instead of
+  returning, so a long answer failed the run as an internal error. The adapter now turns it into
+  a truncated turn, and reasoning models get a 16,000-token limit (only generated tokens are
+  billed), as the Anthropic adapter already did.
+- **A requester's note that replaced the task.** The assistant wrote a detailed brief with its own
+  answer format; the specialist followed the brief, answered in text and never submitted to its
+  check. The note is now framed as context under the standing task, and the delegation tool asks
+  for a sentence or two without a format.
+
 ## What is not here
 
 - One SQLite file with WAL, and polling for new events. Several processes can share it on one

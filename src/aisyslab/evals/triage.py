@@ -78,7 +78,8 @@ URGENT = ["line stopped", "safety risk", "cannot run the shift"]
 
 PROMPT_HEADER = """You triage maintenance tickets for a manufacturing plant.
 Answer with JSON only: {"code": "<failure code>", "priority": 1|2|3, "reason": "<one sentence>"}.
-Priority 1 when the line is stopped or there is a safety risk, otherwise 2, or 3 for cosmetic issues.
+Priority 1 only when the ticket itself says the line is stopped, reports a safety risk or says the shift
+cannot run; do not escalate on a risk you infer. Otherwise 2, or 3 for cosmetic issues.
 
 Failure codes:
 """ + "\n".join(f"- {code}: {meaning}" for code, meaning in CODES.items())

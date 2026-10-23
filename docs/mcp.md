@@ -70,6 +70,11 @@ attention. `--discover` gives the agent two tools: `search_tools` (hybrid search
 names and descriptions, returning exact schemas) and `call_tool`. The underlying toolbox still
 validates arguments and runs the call.
 
+The tools a task cannot finish without stay pinned in the list. In a live run without pinning,
+`gpt-5-mini` found the right answer through discovered tools, wrote "Submitting now." and ended its
+turn: the submit tool was not in its list, and it never searched for it. With the answer tools
+pinned, the same run submitted, read the verifier's feedback and was accepted on the second try.
+
 ```bash
 aisyslab run plant-database --solver agent --provider openai --via-mcp --discover
 ```

@@ -6,10 +6,15 @@ and attention, and models choose worse from long lists. Here the model gets two 
 descriptions) and returns their exact argument schemas; ``call_tool`` runs one by name. The
 underlying toolbox still validates the arguments and runs the call, so nothing is lost in
 safety; only the list the model reads at each step gets shorter.
+
+Pinned tools stay in the list as ordinary tools. Pin the ones a task cannot finish without:
+in a live run without pinning, a model found the answer, wrote "Submitting now." and ended its
+turn, because the submit tool was not in its list and it never searched for it.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -29,9 +34,11 @@ class CallToolArgs(BaseModel):
     arguments: dict[str, Any] = Field(default_factory=dict, description="Arguments matching the tool's schema.")
 
 
-def discovery_toolbox(inner: Toolbox, *, max_output_chars: int = 6000) -> Toolbox:
-    """Wrap a toolbox so the model searches for tools before calling them."""
-    specs = {s.name: s for s in inner.specs()}
+def discovery_toolbox(inner: Toolbox, *, pinned: Iterable[str] = (), max_output_chars: int = 6000) -> Toolbox:
+    """Wrap a toolbox so the model searches for tools before calling them, except ``pinned`` ones."""
+    keep = set(pinned)
+    every = {s.name: s for s in inner.specs()}
+    specs = {name: spec for name, spec in every.items() if name not in keep}  # what search can find
     names = list(specs)
     index = HybridIndex([f"{name.replace('__', ' ').replace('_', ' ')}: {specs[name].description}" for name in names])
 
@@ -50,22 +57,34 @@ def discovery_toolbox(inner: Toolbox, *, max_output_chars: int = 6000) -> Toolbo
         }
 
     def call(args: CallToolArgs) -> Any:
-        if args.tool not in specs:
+        if args.tool not in every:
             raise ToolError(f"No tool named '{args.tool}'.", hint="Use search_tools to find the exact name.")
         result = inner.execute(ToolCall(id="discovered", name=args.tool, arguments=args.arguments))
         if result.is_error:
             raise ToolError.from_payload(result.content)
         return result.content
 
+    def direct(name: str) -> Tool:
+        spec = every[name]
+
+        def run(arguments: dict[str, Any]) -> Any:
+            result = inner.execute(ToolCall(id="pinned", name=name, arguments=arguments))
+            if result.is_error:
+                raise ToolError.from_payload(result.content)
+            return result.content
+
+        return Tool(name, spec.description, None, run, schema=spec.parameters)
+
     return Toolbox(
         [
             Tool(
                 "search_tools",
-                "Find tools by what they do; returns names and argument schemas.",
+                "Find tools by what they do; returns names and argument schemas. Every action is a tool.",
                 SearchToolsArgs,
                 search,
             ),
             Tool("call_tool", "Call a tool found with search_tools.", CallToolArgs, call),
+            *(direct(name) for name in inner.names() if name in keep),
         ],
         max_output_chars=max_output_chars,
     )

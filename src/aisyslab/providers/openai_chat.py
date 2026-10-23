@@ -16,6 +16,10 @@ from ..core.messages import Message, ModelTurn, StopReason, ToolCall, ToolSpec, 
 from ..core.model import ModelError, TextSink
 from ..core.tokens import estimate_tokens
 
+# Reasoning models spend completion tokens on reasoning before the answer; a small limit can
+# leave nothing for the answer itself. Only generated tokens are billed, so a floor costs nothing.
+MIN_COMPLETION_TOKENS = 16000
+
 
 class OpenAIChatModel:
     def __init__(
@@ -85,12 +89,17 @@ class OpenAIChatModel:
         payload = self._payload(system, messages, tools, max_output_tokens)
         if self.stream_usage:
             payload["stream_options"] = {"include_usage": True}
+        # The stream helper raises when the length limit is reached; the partial completion it
+        # carries is a truncated turn, which the agent loop already knows how to handle.
+        length_limit = getattr(self._openai, "LengthFinishReasonError", ())
         try:
             with self._client.chat.completions.stream(**payload) as stream:
                 for event in stream:
                     if event.type == "content.delta":
                         on_text(event.delta)
                 final = stream.get_final_completion()
+        except length_limit as exc:
+            final = exc.completion
         except self._openai.APIError as exc:
             raise ModelError(f"{type(exc).__name__}: {exc}") from exc
         turn = parse_openai_response(final)
@@ -102,10 +111,11 @@ class OpenAIChatModel:
     def _payload(
         self, system: str, messages: Sequence[Message], tools: Sequence[ToolSpec], max_output_tokens: int
     ) -> dict[str, Any]:
+        limit = max_output_tokens if self.token_param == "max_tokens" else max(max_output_tokens, MIN_COMPLETION_TOKENS)
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": [{"role": "system", "content": system}, *to_openai_messages(messages)],
-            self.token_param: max_output_tokens,
+            self.token_param: limit,
         }
         if tools:
             payload["tools"] = [

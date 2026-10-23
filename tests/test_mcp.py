@@ -67,7 +67,7 @@ def test_agent_solves_a_lab_through_mcp() -> None:
     assert report.accepted and report.status == "goal_reached"
 
 
-def test_discovery_gives_the_model_two_tools() -> None:
+def test_discovery_gives_the_model_two_tools_and_keeps_the_answer_tool() -> None:
     expected = sorted(PlantDatabaseEnv(5, EnvOptions()).expected)
     seen: list[list[str]] = []
 
@@ -80,11 +80,12 @@ def test_discovery_gives_the_model_two_tools() -> None:
             found = [t["name"] for t in json.loads(messages[-1].content)["tools"]]
             assert "plant_database__run_query" in found
             return tool_turn("call_tool", tool="plant_database__run_query", arguments={"sql": BLOCKED_ORDERS})
-        return tool_turn("call_tool", tool="plant_database__submit_answer", arguments={"work_order_ids": expected})
+        return tool_turn("plant_database__submit_answer", work_order_ids=expected)
 
     lab = routed(LABS["plant-database"], via_mcp=True, discover=True)
     report = run_once(lab, "agent", 5, model=ScriptedModel(policy))
-    assert report.accepted and all(names == ["search_tools", "call_tool"] for names in seen)
+    assert report.accepted
+    assert all(names == ["search_tools", "call_tool", "plant_database__submit_answer"] for names in seen)
 
 
 def test_stdio_transport_end_to_end() -> None:
