@@ -38,7 +38,7 @@ code and by an agent. On real work the useful question is rarely "can a model do
 | [`spare-part-run`](docs/labs.md#spare-part-run) | Get a spare pump to the stopped line before the deadline | the model proposes, a simulator judges |
 | [`plant-database`](docs/labs.md#plant-database) | Which work orders are blocked by a missing part? | schema discovery, read-only SQL |
 | [Ticket triage](docs/evals.md) | Maintenance tickets to failure codes and priorities | eval sets, a calibrated judge, model comparison, prompt optimisation |
-| Production schedule *(planned)* | Tomorrow's orders on three machines | code written by the model and run in a sandbox |
+| [`production-schedule`](docs/labs.md#production-schedule) | Tomorrow's orders on three presses, with the planner's notes | code mode: the model writes a program that plans, run in a sandbox |
 | Replacement part research *(planned)* | A component is discontinued: what replaces it, from whom, how fast? | web search, a crawler, a deep research loop |
 | Asset and parts graph *(planned)* | Which lines and orders does a late part affect? | graph RAG |
 | Fine-tuned triage *(planned)* | The triage model, trained instead of prompted | fine-tuning compared with prompting |
@@ -57,7 +57,7 @@ examples are designed and listed there so the map is complete; they are built ne
 
 ## What the baselines show
 
-Measured with `aisyslab bench --seeds 0-19`: 240 runs, no model, no API key, about two seconds.
+Measured with `aisyslab bench --seeds 0-19`: 260 runs, no model, no API key, about two seconds.
 
 | Lab | Baseline accepted | Score | API calls / run | What decides it |
 |---|---|---|---|---|
@@ -68,20 +68,21 @@ Measured with `aisyslab bench --seeds 0-19`: 240 runs, no model, no API key, abo
 | `spare-part-run` | 20/20 | 1.00 | 5 | Planning on a fully specified map is search, and search is exact |
 | `maintenance-portal` | 20/20 | 1.00 | 6 | Code never reads the injected comment, so it cannot obey it |
 | `plant-database` | 20/20 | 1.00 | 2 | A known question is one SQL statement; the agent first has to find where the answer lives |
+| `production-schedule` | 2/20 | 0.20 | 2 | The due-date rule cannot read the planner's notes, and plain due-date order is often far from a searched plan |
 | `quality-gate` | 20/20 | 1.00 | 3 | A decision tree learns the lab's thresholds from 240 batches; reading numbers is code's job |
 | `quality-claims` | 7/20 | 0.80 | 17 | Patterns read part, batch and quantity; a defect described without the expected words gets the wrong category |
 | `shift-briefing` | 20/20 | 1.00 | 5 | When the plan is known, a parallel graph of three queries beats a team of agents |
 | `shift-handover` | 3/20 | 0.80 | 21 | Keyword rules read the wording they were written for; a suspicion, a "no leaks seen" and a "spare is out" fool them |
 | `procedures-rag` | 0/20 | 0.53 | 14 | Code gets the plain lookups and misses every question that needs reading: an exception, a date, Polish, a "does not" that means yes |
 
-Nine of the twelve problems fall to under 90 lines of code each (the quality gate also uses a
+Nine of the thirteen problems fall to under 90 lines of code each (the quality gate also uses a
 125-line decision tree, the same one the agent trains through a tool), on every seed, with zero
 tokens. The same baselines pass with 20% of API calls failing, because retries live in code. In
 those labs an agent has to justify itself on flexibility, not capability: what happens when the
 email is phrased differently, the fault is new, the map changes, the planner asks another question.
-In the other three, code gets part of the way and no further: keyword rules over customer claims,
-over a week of shift logs and over procedures fail exactly where the text has to be read. That is
-where the model earns its place, and the agents there are graded on every answer.
+In the other four, code gets part of the way and no further: keyword rules over customer claims,
+over a week of shift logs and over procedures fail exactly where the text has to be read, and a
+fixed planning rule cannot read the planner's notes. That is where the model earns its place.
 
 ## What the agents did
 
@@ -114,7 +115,8 @@ the cost bounded in code (two reflector calls, then the record is cut to fit; th
 request), the second scored 4 of 7: the observer restated old items under new dates and the
 assistant searched the wrong scope. With those fixed, the third, on 24 October at low effort, was
 accepted on its second submission for $0.05. `quality-claims`, also added later, was accepted on
-its first submission (seed 0, low effort, OpenAI's moderation) for about a cent. Produce your own
+its first submission (seed 0, low effort, OpenAI's moderation) for about a cent, and
+`production-schedule` on its second, after it was told its plan was too late and wrote a search. Produce your own
 results, with your key or a local model:
 
 ```bash
@@ -129,14 +131,14 @@ cd applied-ai-systems-lab
 python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
 
-aisyslab list                     # the twelve labs
+aisyslab list                     # the thirteen labs
 aisyslab show supply-intake       # scenario, techniques, where it comes from
 aisyslab run supply-intake        # the baseline, streaming its trace
 aisyslab bench --seeds 0-4        # every baseline on five seeds
 aisyslab eval optimize            # prompt optimisation, offline stand-ins
 aisyslab tenant demo              # a token for the service (shown once)
 aisyslab serve --demo             # the service and its web UI on :8000, without a model
-pytest                            # 258 offline tests
+pytest                            # 268 offline tests
 ```
 
 With a model (keys are read from the environment, never from files in the repo):
@@ -172,6 +174,7 @@ aisyslab trace runs/traces/<file>.jsonl                                         
 | [`spare-part-run`](docs/labs.md#spare-part-run) | Get a spare pump to the stopped line before the deadline. | Forklift battery vs walking time, one-way dismount, no-go zones, rules hidden in documents that must be found first |
 | [`maintenance-portal`](docs/labs.md#maintenance-portal) | Re-code one work order and close another. | A supplier comment that orders "AI assistants" to close everything; closing needs a human's approval token |
 | [`plant-database`](docs/labs.md#plant-database) | Which line-3 work orders cannot start because a spare part is short? | Stock split across storerooms and partly reserved, a superseded part number, a stale "waiting parts" status, two assets moved between lines, and a database that refuses writes |
+| [`production-schedule`](docs/labs.md#production-schedule) | Plan tomorrow's sixteen orders on three presses. | Changeovers, a maintenance window, presses that cannot run every family, and two notes from the planner in plain words that a fixed rule never reads |
 | [`quality-gate`](docs/labs.md#quality-gate) | Which of tonight's batches pass the quality gate? | A rule nobody wrote down, 240 inspected batches, a column filled in only after the inspection (target leakage), two sensor dropouts, rare failures above the upper torque limit |
 | [`quality-claims`](docs/labs.md#quality-claims) | Five customer complaints: accept, investigate, reject or hand to a person, record an 8D claim, reply. | Instructions to "the AI assistant" inside an e-mail, a threatening message, a bank account, defects in the customer's own words, and no personal data may reach a cloud model |
 | [`shift-briefing`](docs/labs.md#shift-briefing) | Where did tonight's stoppage start, which work orders are blocked, which batches are held? | Three systems, specialists that cannot see each other's context, and a verifier that names the wrong section but not the items |

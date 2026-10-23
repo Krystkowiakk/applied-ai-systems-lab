@@ -39,7 +39,7 @@ the technique is listed here so the map is complete; it is built next.
 | Tools shaped by the questions they must answer; their names, descriptions and schemas measured without the system prompt | every lab, `--promptless` ([evals](evals.md#tool-descriptions-as-a-prompt)) | built |
 | Two tools instead of a long list: `search_tools` and `call_tool`, with the answer tools pinned | [`mcp/discovery.py`](../src/aisyslab/mcp/discovery.py) | built |
 | Exact formats (records, reports) rendered by code from the fields the model fills | [`quality-claims`](labs.md#quality-claims) (8D record) | built |
-| Tools as a library: the agent writes code that calls them, instead of one call per step | production schedule | planned |
+| Tools as a library: the agent writes code that calls them, instead of one call per step | [`production-schedule`](labs.md#production-schedule), [sandbox](sandbox.md) | built |
 
 ## MCP
 
@@ -142,7 +142,7 @@ the technique is listed here so the map is complete; it is built next.
 | A topic guard: a second model checks that the answer stays on topic | [guardrails](guardrails.md#a-topic-guard-on-replies) | built |
 | A tamper-evident audit log of model calls and decisions | [guardrails](guardrails.md#a-signed-chained-audit-log) | built |
 | A leak check at the boundary: a prompt holding personal data is blocked before it leaves | [guardrails](guardrails.md#the-leak-check) | built |
-| Code written by the model runs in a sandbox with time, memory and network limits | production schedule | planned |
+| Code written by the model runs in a sandbox with time, memory and network limits, and without keys | [`sandbox/runner.py`](../src/aisyslab/sandbox/runner.py), [`production-schedule`](labs.md#production-schedule) | built |
 
 ## Running it as a service
 

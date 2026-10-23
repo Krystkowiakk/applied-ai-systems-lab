@@ -213,6 +213,32 @@ how many rounds of feedback it needs.
 
 ---
 
+## production-schedule
+
+**Question.** Plan tomorrow's sixteen orders on three presses.
+
+**Environment.** Orders with a product family, a run time and a due time; presses that run some
+families and not others; changeovers (10 minutes within a family, 40 between families); a
+maintenance window on M2 from 10:00 to 12:00; a day from 06:00 to 22:00. Each seed adds two notes from
+the planner in plain words: two orders that share a mould, a press without an operator after 18:00,
+a rush order, or two orders that need the same fixture.
+
+**Verifier.** A plan is feasible when every order runs once, on a press that can run it, without
+overlaps (changeovers included), outside maintenance, within the day, and the notes hold. A feasible
+plan is accepted when its total lateness is within 15% (plus 30 minutes) of what a planner who reads
+the notes reaches: due-date order with the notes as constraints, improved by swapping neighbours.
+The feedback names each broken rule.
+
+**Baseline.** The spreadsheet rule: earliest due date first, each order where it ends earliest. It
+never reads the notes, so it breaks them, and plain due-date order is often much later than a
+searched plan: accepted on 2 seeds of 20.
+
+**Agent.** Code mode: `get_plan`, `run_python` (a program that imports the `plant` library runs in
+the sandbox; a printed proposal comes back checked on the data's rules) and `submit_schedule`. See
+[sandbox.md](sandbox.md).
+
+---
+
 ## quality-gate
 
 **Question.** Which of tonight's 24 batches pass the quality gate? The quality lab has judged 240

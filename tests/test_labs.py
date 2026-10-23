@@ -22,7 +22,7 @@ from aisyslab.labs.spare_part_run.env import SparePartRunEnv, solve_grid
 from aisyslab.labs.supply_intake.env import SupplyIntakeEnv, count_bins, sniff
 
 # Labs where plain code is expected to solve every seed; in these it only gets part of the way.
-PARTIAL = ("procedures-rag", "shift-handover", "quality-claims")
+PARTIAL = ("procedures-rag", "shift-handover", "quality-claims", "production-schedule")
 DETERMINISTIC = [lab_id for lab_id in LABS if lab_id not in PARTIAL]
 NO_SLEEP = RetryPolicy(sleep=lambda _s: None)
 

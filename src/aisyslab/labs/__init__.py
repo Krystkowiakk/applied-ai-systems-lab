@@ -8,6 +8,7 @@ from .line_incident import LAB as LINE_INCIDENT
 from .maintenance_portal import LAB as MAINTENANCE_PORTAL
 from .plant_database import LAB as PLANT_DATABASE
 from .procedures_rag import LAB as PROCEDURES_RAG
+from .production_schedule import LAB as PRODUCTION_SCHEDULE
 from .quality_claims import LAB as QUALITY_CLAIMS
 from .quality_gate import LAB as QUALITY_GATE
 from .service_repair import LAB as SERVICE_REPAIR
@@ -26,6 +27,7 @@ LABS: dict[str, Lab] = {
         SPARE_PART_RUN,
         MAINTENANCE_PORTAL,
         PLANT_DATABASE,
+        PRODUCTION_SCHEDULE,
         QUALITY_GATE,
         QUALITY_CLAIMS,
         SHIFT_BRIEFING,
