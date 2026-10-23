@@ -176,6 +176,30 @@ instruction cannot reach it.
 
 ---
 
+## part-research
+
+**Question.** Line 2's discontinued solenoid valve (24 V DC, G1/4, at least 9 bar): which compatible
+replacement can we get fastest, in how many weeks, with what pressure rating, which parts were
+rejected and why, in a short report with sources.
+
+**Environment.** A small fictional web behind a search API and a crawler: the maker's discontinuation
+notice naming the successor, the successor's current datasheet and a superseded revision with a lower
+rating, a distributor's current and archived stock pages, an alternative from another maker with a
+cross-reference, a forum answer recommending a valve with the wrong coil voltage (in stock, one week),
+and a price list behind robots.txt.
+
+**Verifier.** The replacement, its current lead time and current pressure rating (an archived lead
+time or a superseded rating is named as such), the incompatible part rejected, and a report whose
+citations all point to fetched pages, at least three of them.
+
+**Baseline.** Search, take the top hit, extract with patterns: the first answer to "VT-200
+replacement" is the forum post, so it recommends the wrong valve on all 20 seeds.
+
+**Agent.** `question`, `web_search`, `fetch`, `note`, `write_report` (section by section, citations
+checked), `submit_answer`. See [research.md](research.md).
+
+---
+
 ## plant-database
 
 **Question.** Which open corrective work orders on line 3 cannot start tonight because a required

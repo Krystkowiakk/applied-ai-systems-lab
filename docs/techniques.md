@@ -78,9 +78,9 @@ the technique is listed here so the map is complete; it is built next.
 | Text-to-SQL after schema discovery; the computation done by the database | [`plant-database`](labs.md#plant-database) | built |
 | Graph RAG: when the relations are the knowledge, traversal tools instead of similarity | asset and parts graph | planned |
 | Extraction from documents into a structured store, validated by a parser | asset and parts graph | planned |
-| A web search API and a crawler with rate limits and retries | replacement part research | planned |
-| Deep research loop: plan, search, read, name the gaps, search again | replacement part research | planned |
-| A long report written from an outline, section by section, every claim cited | replacement part research | planned |
+| A web search API behind one interface (offline index, or a search model on the real web) and a polite crawler | [research](research.md#one-search-interface-two-backends), `aisyslab search` | built |
+| Deep research loop: search, read, note with sources, name the gaps, search again | [`part-research`](labs.md#part-research) | built |
+| A long report written from an outline, section by section, every citation checked in code | [research](research.md#a-long-report-section-by-section) | built |
 
 ## Images and voice
 

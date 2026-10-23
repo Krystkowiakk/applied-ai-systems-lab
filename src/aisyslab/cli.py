@@ -83,6 +83,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     svc.add_argument("--host", default="127.0.0.1")
     svc.add_argument("--port", type=int, default=8000)
 
+    web = sub.add_parser("search", help="Search the real web through the research SearchAPI (needs OPENAI_API_KEY).")
+    web.add_argument("query")
+    web.add_argument("--k", type=int, default=5)
+    web.add_argument("--model", default="gpt-5-search-api")
+
     ten = sub.add_parser("tenant", help="Create a tenant of the service and print its token (shown once).")
     ten.add_argument("name")
     ten.add_argument("--budget", type=int, default=500_000, help="Token budget.")
@@ -107,6 +112,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         return run_eval_command(args)
     if args.command == "tenant":
         return _tenant(args)
+    if args.command == "search":
+        from .research.web import OpenAISearch
+
+        try:
+            results = OpenAISearch(args.model).search(args.query, k=args.k)
+        except ModelError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        for r in results:
+            print(f"{r['title']}\n  {r['url']}\n  {r['snippet']}\n")
+        return 0
     if args.command == "serve":
         try:
             return _serve(args)
