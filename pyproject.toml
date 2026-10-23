@@ -29,7 +29,7 @@ aisyslab = "aisyslab.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-aisyslab = ["py.typed", "runtime/static/*.html", "runtime/processes/*/*.md"]
+aisyslab = ["py.typed", "runtime/static/*.html", "runtime/processes/*/*.md", "voice/recorded/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

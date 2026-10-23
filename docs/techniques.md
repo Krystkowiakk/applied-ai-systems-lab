@@ -89,9 +89,10 @@ the technique is listed here so the map is complete; it is built next.
 |---|---|---|
 | Route files by content (magic bytes), not by name; decode structured formats in code | [`supply-intake`](labs.md#supply-intake) | built |
 | Vision on a photo, cross-checked by a deterministic validator | [`supply-intake`](labs.md#supply-intake) | built |
-| Speech-to-text grounded in the plant's vocabulary (asset names, part numbers) | voice on the shop floor | planned |
-| Text-to-speech cached by text, voice and model; an utterance that may have been delivered is never replayed | voice on the shop floor | planned |
-| A voice agent as a cascade (speech-to-text, model, text-to-speech) with a latency budget per stage | voice on the shop floor | planned |
+| Speech-to-text grounded in the plant's vocabulary: terms up front, then IDs checked against the registry, teen/ty corrected, the rest asked | [voice](voice.md#speech-to-text-grounded-in-the-plants-vocabulary), [`voice/vocabulary.py`](../src/aisyslab/voice/vocabulary.py) | built |
+| A speech pipeline evaluated step by step on recorded audio, each step's gain measured | [voice](voice.md#the-evaluation-ten-voice-notes) | built |
+| Text-to-speech cached by text, voice and model; an utterance that may have been delivered is never replayed | [voice](voice.md#speech-that-is-paid-for-once-and-said-once), [`voice/delivery.py`](../src/aisyslab/voice/delivery.py) | built |
+| A voice agent as a cascade (speech-to-text, model, text-to-speech) with a latency budget per stage, streamed by sentence, a filler when the model is slow | [voice](voice.md#a-voice-agent-as-a-cascade-with-a-latency-budget-per-stage), [`voice/cascade.py`](../src/aisyslab/voice/cascade.py) | built |
 | Image generation, a template rendered in code, and a vision check before the result is used | visual work instructions | planned |
 
 ## Several agents

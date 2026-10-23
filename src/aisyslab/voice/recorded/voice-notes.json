@@ -1,0 +1,47 @@
+{
+  "model": "gpt-4o-transcribe",
+  "tts": "gpt-4o-mini-tts",
+  "recorded": "2026-10-24",
+  "transcripts": {
+    "note-01": {
+      "plain": "This is Marta at MC14, the transfer press. The seal kit P1040 is weeping oil. It will hold until Friday.",
+      "vocabulary": "This is Marta at MC-14, the transfer press. The seal kit P-1040 is weeping oil. It will hold until Friday."
+    },
+    "note-02": {
+      "plain": "Line two is down. The trim press, MC15, sorry, MC13 has a hydraulic pressure alarm. We need the relief valve P1515 right now.",
+      "vocabulary": "Line 2 is down. The trim press MC-15, sorry, MC-13, has a hydraulic pressure alarm. We need the relief valve P-1515 right now."
+    },
+    "note-03": {
+      "plain": "Robot cell on line three keeps stopping on a position error. Probably the encoder, P1716. Not urgent, just log it.",
+      "vocabulary": "Robot cell on line three keeps stopping on a position error\u2014probably the encoder P-1716. Not urgent, just log it."
+    },
+    "note-04": {
+      "plain": "Press 2 on line 1. The proportional valve P1218 is sticking. Cycle times are up. It should be fixed this week.",
+      "vocabulary": "Press 2 on line 1, the proportional valve P-1218 is sticking. Cycle times are up. It should be fixed this week."
+    },
+    "note-05": {
+      "plain": "The press on line one is leaking from the main cylinder. It needs fixing before the weekend.",
+      "vocabulary": "The press on line one is leaking from the main cylinder. It needs fixing before the weekend."
+    },
+    "note-06": {
+      "plain": "MC17, the welding cell. Filter element P1314 is clogged again. The line will stop within the hour if we don't swap it.",
+      "vocabulary": "MC-17, the welding cell. Filter element P-1314 is clogged again. The line will stop within the hour if we don't swap it."
+    },
+    "note-07": {
+      "plain": "Asembly cell MC-18, the pressure sensor P1550 reads zero. We're running on the backup, so it can wait for the day shift.",
+      "vocabulary": "Assembly cell MC-18, the pressure sensor P-1550 reads zero. We're running on the backup, so it can wait for the day shift."
+    },
+    "note-08": {
+      "plain": "Dear pump P1660 on MC11 is noisy. Nothing urgent.",
+      "vocabulary": "Gear pump P-1660 on MC-11 is noisy, nothing urgent."
+    },
+    "note-09": {
+      "plain": "This is Tomasz. The transfer press needs a look, something is knocking in the drive, but I couldn't see which part.",
+      "vocabulary": "This is Tomas. The transfer press needs a look. Something is knocking in the drive, but I couldn't see which part."
+    },
+    "note-10": {
+      "plain": "NC 14: The transfer press line is stopped. Seal kit again. P1040.",
+      "vocabulary": "MC-14. The transfer press line is stopped. Seal kit again, P-1040."
+    }
+  }
+}

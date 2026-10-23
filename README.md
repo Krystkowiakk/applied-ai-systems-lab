@@ -27,7 +27,7 @@ code and by an agent. On real work the useful question is rarely "can a model do
 | [`quality-claims`](docs/labs.md#quality-claims) | A customer complaint about a batch: decide, record, reply | data classification, anonymisation, moderation, quarantined extraction, a topic guard, an audit log |
 | [`shift-handover`](docs/labs.md#shift-handover) | What does the next shift need to know? | observational memory, scopes, facts that supersede older ones |
 | [`procedures-rag`](docs/labs.md#procedures-rag) | What do the procedures say? Answer, cite, or say it is not covered | hybrid retrieval, search across languages, checked citations |
-| Voice on the shop floor *(planned)* | Voice notes at the machine, a spoken briefing for the shift lead | speech-to-text with plant vocabulary, text-to-speech, a voice agent |
+| [Voice on the shop floor](docs/voice.md) | Voice notes at the machine filed as work requests; a spoken answer for the shift lead | speech-to-text grounded in the plant's vocabulary, speech cached and said at most once, a voice cascade on a latency budget |
 | Visual work instructions *(planned)* | An instruction card for a maintenance step | image generation, a template in code, a vision check |
 
 **Industrial planning**
@@ -145,7 +145,8 @@ aisyslab bench --seeds 0-4        # every baseline on five seeds
 aisyslab eval optimize            # prompt optimisation, offline stand-ins
 aisyslab tenant demo              # a token for the service (shown once)
 aisyslab serve --demo             # the service and its web UI on :8000, without a model
-pytest                            # 307 offline tests
+aisyslab voice notes              # the voice-note pipelines on recorded transcripts
+pytest                            # 315 offline tests
 ```
 
 With a model (keys are read from the environment, never from files in the repo):
@@ -167,6 +168,8 @@ aisyslab run plant-database --solver agent --provider anthropic --via-mcp --disc
 aisyslab mcp plant-database --seed 4                                                      # serve a lab to an MCP client
 aisyslab eval triage --provider openai --models gpt-5-mini,gpt-5 --judge                  # compare models on one eval set
 aisyslab search "ISO 4414 pneumatic safety"                                               # the research SearchAPI on the real web
+aisyslab voice notes --speech openai --provider openai --model gpt-5-mini                 # speak, transcribe and file ten voice notes
+aisyslab voice ask --speech openai --provider openai --model gpt-5-mini                   # ask by voice, hear the answer, with stage timings
 aisyslab serve --provider anthropic --fallback-provider openai                            # the service, with a fallback model
 aisyslab trace runs/traces/<file>.jsonl                                                   # replay a run as a timeline
 ```
