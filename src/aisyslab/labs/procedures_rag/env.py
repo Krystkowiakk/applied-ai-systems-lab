@@ -1,7 +1,7 @@
-"""Relocation assistant: answer from the handbook, cite the section, say when it is not there.
+"""Procedures assistant: answer from the plant's procedures, cite the section, say when it is not there.
 
 The verifier grades each answer on its normalised value and on whether a cited section
-actually supports it. A value taken from the superseded edition is reported as outdated.
+actually supports it. A value taken from the superseded revision is reported as outdated.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from ...core.verdict import Verdict
 from .corpus import build, normalise
 
 
-class RelocationRagEnv(LabEnv):
+class ProceduresRagEnv(LabEnv):
     def __init__(self, seed: int, options: EnvOptions) -> None:
         super().__init__(seed, options)
         self.sections, self.questions = build(seed)
@@ -45,7 +45,7 @@ class RelocationRagEnv(LabEnv):
             )
         result: dict[str, Any] = {"results": hits}
         if all(h["scores"]["bm25"] == 0 for h in hits):
-            result["hint"] = "No keyword matched; results are ranked by similarity only. The handbook is in English."
+            result["hint"] = "No keyword matched; results are ranked by similarity only. The procedures are in English."
         return result
 
     def read_section(self, section_id: str) -> dict[str, str]:
@@ -71,14 +71,14 @@ class RelocationRagEnv(LabEnv):
                     per_question[q.id] = "ok"
                 else:
                     per_question[q.id] = (
-                        "wrong: the handbook does not answer this; say 'not covered' instead of guessing"
+                        "wrong: the procedures do not answer this; say 'not covered' instead of guessing"
                     )
             elif value == q.value and cites & set(q.cites):
                 per_question[q.id] = "ok"
             elif value == q.value:
                 per_question[q.id] = "value ok, but no cited section supports it"
             elif q.stale is not None and value == q.stale:
-                per_question[q.id] = "outdated: that value comes from a superseded edition"
+                per_question[q.id] = "outdated: that value comes from a superseded revision"
             else:
                 per_question[q.id] = "wrong value"
         correct = sum(v == "ok" for v in per_question.values())

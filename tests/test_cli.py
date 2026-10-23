@@ -9,7 +9,7 @@ from aisyslab.cli import _seeds, main
 
 def test_list_and_show(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["list"]) == 0
-    assert "relocation-rag" in capsys.readouterr().out
+    assert "procedures-rag" in capsys.readouterr().out
     assert main(["show", "maintenance-portal"]) == 0
     assert "Techniques" in capsys.readouterr().out
 
@@ -34,7 +34,7 @@ def test_bench_writes_results(tmp_path: Path) -> None:
             [
                 "bench",
                 "--labs",
-                "inbox,relocation-rag",
+                "inbox,procedures-rag",
                 "--seeds",
                 "0-1",
                 "--out",
@@ -47,7 +47,7 @@ def test_bench_writes_results(tmp_path: Path) -> None:
     )
     table = next(out.glob("bench-*.md")).read_text()
     assert "| inbox | baseline | - | 2/2 |" in table
-    assert "| relocation-rag | baseline | - | 0/2 |" in table
+    assert "| procedures-rag | baseline | - | 0/2 |" in table
 
 
 def test_seed_specs() -> None:

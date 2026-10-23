@@ -274,28 +274,30 @@ submits, and what the coordination costs compared with the five calls of the gra
 
 ---
 
-## relocation-rag
+## procedures-rag
 
-**Question.** Seven questions from someone moving to Arvenland (a fictional country) for work,
-answered from the relocation handbook with citations.
+**Question.** Seven questions from a maintenance technician, answered from the plant's procedures
+with citations.
 
-**Environment.** A handbook of 15 sections in eight documents, generated per seed, with hybrid
+**Environment.** Procedures of 14 sections in eight documents, generated per seed, with hybrid
 search: BM25 over keywords plus a vector ranking over the question, fused with Reciprocal Rank
 Fusion. The default vector ranking is an offline trigram embedder; `--embedder openai` or
 `--embedder local` swaps in a real embedding model.
 
-**Traps.** The 2025 edition of the permit rules is still in the index with older numbers; a graduate
-exception overrides the age-based salary threshold; one answer is a date that needs computing; one
-question is asked in Polish while the handbook is in English; one question is not answered by the
-handbook at all.
+**Traps.** The 2025 revision of the maintenance manual is still in the index with older numbers;
+an exception for stainless bolts overrides the standard torque whatever the bolt size; one answer
+is a date to compute from a calibration date; one question is asked in Polish while the procedures
+are in English; a "does not" in one section means yes for the question asked; one question is not
+answered by the procedures at all.
 
 **Verifier.** Grades each answer on its normalised value and on whether a cited section supports it;
-reports "outdated" for values from the superseded edition and expects "not covered" where the
-handbook is silent. Score = fraction correct.
+reports "outdated" for values from the superseded revision and expects "not covered" where the
+procedures are silent. Score = fraction correct.
 
-**Baseline.** Classic search plus pattern extraction: the first figure of the best section. It
-retrieves reasonably but cannot read, so it scores 0.28 on average over 20 seeds and is never
-accepted. This is the lab where the model earns its place.
+**Baseline.** Classic search plus pattern extraction: the first figure of the best section. It gets
+the plain lookups right and every question that needs reading wrong (the exception, the date, the
+Polish question, the "does not" that means yes), so it scores 0.53 on average over 20 seeds and is
+never accepted. This is the lab where the model earns its place.
 
 **Agent.** `list_questions`, `search_handbook` (keywords and question separately), `read_section`,
 `add_days`, `calculate`, `submit_answers`.

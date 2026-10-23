@@ -7,8 +7,8 @@ from .inbox import LAB as INBOX
 from .line_incident import LAB as LINE_INCIDENT
 from .maintenance_portal import LAB as MAINTENANCE_PORTAL
 from .plant_database import LAB as PLANT_DATABASE
+from .procedures_rag import LAB as PROCEDURES_RAG
 from .quality_gate import LAB as QUALITY_GATE
-from .relocation_rag import LAB as RELOCATION_RAG
 from .service_repair import LAB as SERVICE_REPAIR
 from .shift_briefing import LAB as SHIFT_BRIEFING
 from .spare_part_run import LAB as SPARE_PART_RUN
@@ -26,7 +26,7 @@ LABS: dict[str, Lab] = {
         PLANT_DATABASE,
         QUALITY_GATE,
         SHIFT_BRIEFING,
-        RELOCATION_RAG,
+        PROCEDURES_RAG,
     )
 }
 

@@ -14,14 +14,14 @@ from aisyslab.labs.line_incident.env import TOKEN_LIMIT, LineIncidentEnv
 from aisyslab.labs.maintenance_portal.env import MaintenancePortalEnv
 from aisyslab.labs.maintenance_portal.pages import parse_work_order
 from aisyslab.labs.plant_database.env import EXTRA_REASONS, MISSING_REASONS, PlantDatabaseEnv
+from aisyslab.labs.procedures_rag.env import ProceduresRagEnv
 from aisyslab.labs.quality_gate import tree as cart
 from aisyslab.labs.quality_gate.env import QualityGateEnv
-from aisyslab.labs.relocation_rag.env import RelocationRagEnv
 from aisyslab.labs.service_repair.env import ROOT, ServiceRepairEnv
 from aisyslab.labs.spare_part_run.env import SparePartRunEnv, solve_grid
 from aisyslab.labs.supply_intake.env import SupplyIntakeEnv, count_bins, sniff
 
-DETERMINISTIC = [lab_id for lab_id in LABS if lab_id != "relocation-rag"]
+DETERMINISTIC = [lab_id for lab_id in LABS if lab_id != "procedures-rag"]
 NO_SLEEP = RetryPolicy(sleep=lambda _s: None)
 
 
@@ -46,7 +46,7 @@ def test_flaky_calls_are_retried_not_surfaced() -> None:
 
 @pytest.mark.parametrize("seed", range(5))
 def test_rag_baseline_is_partial_without_a_model(seed: int) -> None:
-    report = run_once(LABS["relocation-rag"], "baseline", seed)
+    report = run_once(LABS["procedures-rag"], "baseline", seed)
     assert not report.accepted
     assert report.score is not None and 0 < report.score < 1
 
@@ -266,16 +266,16 @@ def test_quality_gate_holds_missing_measurements() -> None:
     assert verdict.details["missing_passed"] == 2
 
 
-# ----- relocation rag ----------------------------------------------------------------------
-def test_rag_verifier_checks_values_citations_and_editions(ctx: RunContext) -> None:
-    env = RelocationRagEnv(0, EnvOptions())
-    salary = next(q for q in env.questions if q.id == "salary-30")
+# ----- procedures rag ----------------------------------------------------------------------
+def test_rag_verifier_checks_values_citations_and_revisions(ctx: RunContext) -> None:
+    env = ProceduresRagEnv(0, EnvOptions())
+    torque = next(q for q in env.questions if q.id == "torque-m16")
     answers = [
-        {"question_id": salary.id, "value": salary.stale, "citations": ["permits-2025#2"]},
-        {"question_id": "corporate-tax", "value": "25", "citations": ["tax#1"]},
+        {"question_id": torque.id, "value": torque.stale, "citations": ["maintenance-2025#2"]},
+        {"question_id": "sunday-overtime", "value": "150", "citations": ["training#1"]},
     ]
     feedback = env.submit(answers).details["per_question"]
-    assert feedback["salary-30"].startswith("outdated")
-    assert "not covered" in feedback["corporate-tax"]
-    uncited = env.submit([{"question_id": salary.id, "value": f"{int(salary.value):,} ARV", "citations": []}])
-    assert "no cited section" in uncited.details["per_question"]["salary-30"]
+    assert feedback["torque-m16"].startswith("outdated")
+    assert "not covered" in feedback["sunday-overtime"]
+    uncited = env.submit([{"question_id": torque.id, "value": f"{torque.value} Nm", "citations": []}])
+    assert "no cited section" in uncited.details["per_question"]["torque-m16"]

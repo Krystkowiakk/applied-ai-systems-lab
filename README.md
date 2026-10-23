@@ -24,6 +24,7 @@ code and by an agent. On real work the useful question is rarely "can a model do
 | [`maintenance-portal`](docs/labs.md#maintenance-portal) | Re-code one work order and close another | prompt injection handled by design, human approval |
 | [`quality-gate`](docs/labs.md#quality-gate) | Which of tonight's batches pass the gate? | classic ML in code, target leakage |
 | [`shift-briefing`](docs/labs.md#shift-briefing) | One report from three investigations | an orchestrator and specialists, a shared workspace |
+| [`procedures-rag`](docs/labs.md#procedures-rag) | What do the procedures say? Answer, cite, or say it is not covered | hybrid retrieval, search across languages, checked citations |
 | Shift handover memory *(planned)* | What does the next shift need to know? | long-term memory, scopes, facts that supersede older ones |
 | Quality claim assistant *(planned)* | A customer complaint about a batch, answered and logged | data classification, anonymisation, moderation, a topic guard, an audit log |
 | Voice on the shop floor *(planned)* | Voice notes at the machine, a spoken briefing for the shift lead | speech-to-text with plant vocabulary, text-to-speech, a voice agent |
@@ -47,7 +48,6 @@ code and by an agent. On real work the useful question is rarely "can a model do
 | Example | The question | What it shows |
 |---|---|---|
 | [`service-repair`](docs/labs.md#service-repair) | Get the line's edge gateway running again | a restricted shell, policy enforced by the environment |
-| [`relocation-rag`](docs/labs.md#relocation-rag) | A product feature: answer, cite, or say it is not covered | hybrid retrieval, agentic search, checked citations |
 | [MCP servers and host](docs/mcp.md) | Use the labs' tools from any MCP client, and MCP servers from the agent | servers over stdio and HTTP, a host, tool discovery |
 | [Agent toolkit](docs/architecture.md) | The loop under every example | typed tools, budgets, retries, providers, traces |
 | [Maintenance request service](docs/runtime.md) | The team's requests as durable jobs, with a web UI | a model gateway, a durable runtime, streaming, tenants, cron |
@@ -70,7 +70,7 @@ Measured with `aisyslab bench --seeds 0-19`: 200 runs, no model, no API key, und
 | `plant-database` | 20/20 | 1.00 | 2 | A known question is one SQL statement; the agent first has to find where the answer lives |
 | `quality-gate` | 20/20 | 1.00 | 3 | A decision tree learns the lab's thresholds from 240 batches; reading numbers is code's job |
 | `shift-briefing` | 20/20 | 1.00 | 5 | When the plan is known, a parallel graph of three queries beats a team of agents |
-| `relocation-rag` | 0/20 | 0.28 | 14 | Code retrieves but cannot read: exceptions, dates, a question in Polish |
+| `procedures-rag` | 0/20 | 0.53 | 14 | Code gets the plain lookups and misses every question that needs reading: an exception, a date, Polish, a "does not" that means yes |
 
 Nine of the ten problems fall to under 90 lines of code each (the quality gate also uses a
 125-line decision tree, the same one the agent trains through a tool), on every seed, with zero
@@ -96,7 +96,7 @@ with cached input priced as cached. Twenty runs cost $0.31 in total.
 | `plant-database` | 2/2 | 12 | $0.009 | 36 s |
 | `quality-gate` | 2/2 | 16 | $0.022 | 29 s |
 | `shift-briefing` | 2/2 | 51 | $0.064 | 239 s |
-| `relocation-rag` | 2/2 | 11 | $0.010 | 32 s |
+| `procedures-rag` | 2/2 | 14 | $0.010 | 35 s |
 
 Nine of ten labs fall to the agent too, at a cent or two a run and tens of seconds instead of
 milliseconds. The tenth shows why the verifiers count more than the final answer: in
@@ -134,7 +134,7 @@ With a model (keys are read from the environment, never from files in the repo):
 pip install -e ".[all]"
 export ANTHROPIC_API_KEY=...      # or OPENAI_API_KEY
 
-aisyslab run relocation-rag --solver agent --provider anthropic
+aisyslab run procedures-rag --solver agent --provider anthropic
 aisyslab run inbox --solver agent --provider openai --model gpt-5-mini --flaky 0.2
 aisyslab run line-incident --solver agent --provider local --model qwen2.5-7b-instruct   # LM Studio
 aisyslab run line-incident --solver agent --provider local --base-url http://localhost:11434/v1 --model qwen2.5:7b   # Ollama
@@ -162,7 +162,7 @@ aisyslab trace runs/traces/<file>.jsonl                                         
 | [`plant-database`](docs/labs.md#plant-database) | Which line-3 work orders cannot start because a spare part is short? | Stock split across storerooms and partly reserved, a superseded part number, a stale "waiting parts" status, two assets moved between lines, and a database that refuses writes |
 | [`quality-gate`](docs/labs.md#quality-gate) | Which of tonight's batches pass the quality gate? | A rule nobody wrote down, 240 inspected batches, a column filled in only after the inspection (target leakage), two sensor dropouts, rare failures above the upper torque limit |
 | [`shift-briefing`](docs/labs.md#shift-briefing) | Where did tonight's stoppage start, which work orders are blocked, which batches are held? | Three systems, specialists that cannot see each other's context, and a verifier that names the wrong section but not the items |
-| [`relocation-rag`](docs/labs.md#relocation-rag) | Answer a newcomer's relocation questions from the handbook. | A superseded edition, an exception that overrides the rule, a deadline to compute, a question in Polish, one the handbook does not answer |
+| [`procedures-rag`](docs/labs.md#procedures-rag) | A technician's questions about torque, lockout, permits and calibration, answered from the plant's procedures. | A superseded revision, an exception that overrides the rule, a calibration date to compute, a question in Polish, one the procedures do not answer |
 
 Each lab's techniques, traps and design choices are in [docs/labs.md](docs/labs.md). Beyond the
 labs: [MCP](docs/mcp.md), [orchestration](docs/orchestration.md), [evaluation](docs/evals.md) and the
@@ -227,7 +227,7 @@ separate packages on top of it. Details and trade-offs: [docs/architecture.md](d
   visible and checkable. Production data is messier; the verifiers here are kinder than reality.
 - **Token budgets inside environments use one deterministic estimate** so verifier, tools and
   solvers agree. Cost figures in reports come from provider usage.
-- **All names are fictional**: the company (Halden), the country (Arvenland), people and suppliers.
+- **All names are fictional**: the company (Halden), its people and its suppliers.
 
 ## About me
 

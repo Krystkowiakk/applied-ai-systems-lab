@@ -20,7 +20,7 @@ from aisyslab.labs.inbox.env import InboxEnv
 from aisyslab.labs.maintenance_portal.env import MaintenancePortalEnv
 from aisyslab.labs.plant_database.baseline import BLOCKED_ORDERS
 from aisyslab.labs.plant_database.env import PlantDatabaseEnv
-from aisyslab.labs.relocation_rag.env import RelocationRagEnv
+from aisyslab.labs.procedures_rag.env import ProceduresRagEnv
 from aisyslab.labs.service_repair.env import LOCK, ROOT, ServiceRepairEnv
 from aisyslab.labs.supply_intake.env import SupplyIntakeEnv, sniff
 
@@ -167,13 +167,13 @@ def test_vision_side_calls_are_validated_and_costed() -> None:
 
 
 def test_rag_agent_submission_is_graded_per_question() -> None:
-    probe = RelocationRagEnv(2, EnvOptions())
+    probe = ProceduresRagEnv(2, EnvOptions())
     answers = [
         {"question_id": q.id, "value": q.value, "answer": q.value, "citations": list(q.cites)} for q in probe.questions
     ]
 
     report = run_once(
-        LABS["relocation-rag"], "agent", 2, model=ScriptedModel([tool_turn("submit_answers", answers=answers)])
+        LABS["procedures-rag"], "agent", 2, model=ScriptedModel([tool_turn("submit_answers", answers=answers)])
     )
     assert report.accepted and report.score == 1.0
 

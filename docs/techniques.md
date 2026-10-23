@@ -71,10 +71,10 @@ the technique is listed here so the map is complete; it is built next.
 | The simplest search that works first: query operators and keywords on data with a stable shape | [`inbox`](labs.md#inbox) | built |
 | Embeddings and vector ranking (offline trigram, or a provider's embedding model) | [`core/retrieval.py`](../src/aisyslab/core/retrieval.py), `--embedder` | built |
 | Hybrid search: BM25 and vectors fused with Reciprocal Rank Fusion | [`core/retrieval.py`](../src/aisyslab/core/retrieval.py) | built |
-| Agentic search: the agent writes the queries, across languages | [`relocation-rag`](labs.md#relocation-rag) | built |
-| Citations checked by the verifier; "not covered" instead of a guess | [`relocation-rag`](labs.md#relocation-rag) | built |
-| Chunks cut along the document's structure (sections), with metadata on every chunk | [`relocation-rag`](labs.md#relocation-rag) | built |
-| Source metadata (edition, status) to avoid superseded documents | [`relocation-rag`](labs.md#relocation-rag) | built |
+| Agentic search: the agent writes the queries, across languages | [`procedures-rag`](labs.md#procedures-rag) | built |
+| Citations checked by the verifier; "not covered" instead of a guess | [`procedures-rag`](labs.md#procedures-rag) | built |
+| Chunks cut along the document's structure (sections), with metadata on every chunk | [`procedures-rag`](labs.md#procedures-rag) | built |
+| Source metadata (edition, status) to avoid superseded documents | [`procedures-rag`](labs.md#procedures-rag) | built |
 | Text-to-SQL after schema discovery; the computation done by the database | [`plant-database`](labs.md#plant-database) | built |
 | Graph RAG: when the relations are the knowledge, traversal tools instead of similarity | asset and parts graph | planned |
 | Extraction from documents into a structured store, validated by a parser | asset and parts graph | planned |

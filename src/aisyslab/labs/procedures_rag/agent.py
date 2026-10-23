@@ -1,4 +1,4 @@
-"""Agent solver: agentic search over the handbook, answers with citations, refusal when unsupported."""
+"""Agent solver: agentic search over the procedures, answers with citations, refusal when unsupported."""
 
 from __future__ import annotations
 
@@ -11,18 +11,18 @@ from ...core.calculator import calculator_tool
 from ...core.lab import RunContext
 from ...core.model import ChatModel
 from ...core.tools import NoArgs, Tool, Toolbox, ToolError
-from .env import RelocationRagEnv
+from .env import ProceduresRagEnv
 
-SYSTEM = """You are a relocation assistant for people moving to Arvenland for work. You answer only
-from the relocation handbook, which you reach through search_handbook and read_section.
+SYSTEM = """You answer maintenance technicians' questions at the Halden plant, only from the plant's
+procedures, which you reach through search_handbook and read_section.
 
 Rules:
-- Search with English keywords (the handbook is in English) even when the question is not,
+- Search with English keywords (the procedures are in English) even when the question is not,
   and pass the full question as well; then read the sections you rely on.
-- Prefer sections with status "current". A superseded edition is history, not an answer.
+- Prefer sections with status "current". A superseded revision is history, not an answer.
 - Check exceptions: a later sentence can override the general rule for the asker's case.
 - Do date and number arithmetic with add_days and calculate, never in your head.
-- If the handbook does not answer a question, the value is "not covered" and you cite nothing.
+- If the procedures do not answer a question, the value is "not covered" and you cite nothing.
   Do not fill gaps from general knowledge.
 
 Submit all answers at once with submit_answers. "value" holds only the bare answer: a number
@@ -33,7 +33,7 @@ TASK = "Answer every question from list_questions and submit the answers."
 
 
 class SearchArgs(BaseModel):
-    keywords: str = Field(description="English keywords for exact matching, e.g. 'salary threshold graduate'.")
+    keywords: str = Field(description="English keywords for exact matching, e.g. 'coupling bolt torque stainless'.")
     question: str | None = Field(default=None, description="The full question, used for similarity ranking.")
     k: int = Field(default=5, ge=1, le=8)
 
@@ -58,7 +58,7 @@ class AnswersArgs(BaseModel):
     answers: list[AnswerItem]
 
 
-def toolbox(env: RelocationRagEnv, model: ChatModel | None, ctx: RunContext) -> Toolbox:
+def toolbox(env: ProceduresRagEnv, model: ChatModel | None, ctx: RunContext) -> Toolbox:
     def add_days(args: DaysArgs) -> dict[str, str]:
         try:
             start = date.fromisoformat(args.start)
@@ -82,7 +82,7 @@ def toolbox(env: RelocationRagEnv, model: ChatModel | None, ctx: RunContext) -> 
             ),
             Tool(
                 "read_section",
-                "Full text and metadata of one handbook section.",
+                "Full text and metadata of one procedure section.",
                 SectionArgs,
                 lambda a: ctx.tool_call(env.read_section, a.section_id),
             ),

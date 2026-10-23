@@ -2,8 +2,8 @@
 
 This is the honest ceiling of code without a model on open questions: it retrieves well
 but cannot read. It takes the first figure of the best section, cannot apply exceptions or
-date arithmetic, misses a question asked in Polish, and only says "not covered" when
-keyword overlap is low. Expect a partial score, not acceptance.
+date arithmetic, misses a question asked in Polish, reads "does not" as a no, and only says
+"not covered" when keyword overlap is low. Expect a partial score, not acceptance.
 """
 
 from __future__ import annotations
@@ -11,13 +11,13 @@ from __future__ import annotations
 import re
 
 from ...core.lab import RunContext
-from .env import RelocationRagEnv
+from .env import ProceduresRagEnv
 
 NUMBER = re.compile(r"\d[\d,]*")
 MIN_BM25 = 2.0
 
 
-def solve(env: RelocationRagEnv, ctx: RunContext) -> None:
+def solve(env: ProceduresRagEnv, ctx: RunContext) -> None:
     answers = []
     for q in ctx.call(env.list_questions):
         result = ctx.call(env.search, q["question"], q["question"], 3)
