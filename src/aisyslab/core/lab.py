@@ -21,10 +21,14 @@ T = TypeVar("T")
 @dataclass(frozen=True)
 class EnvOptions:
     """``flaky``: probability that any API call fails with a transient 503/429.
-    ``embedder``: optional embedding model for labs with retrieval (offline default otherwise)."""
+    ``embedder``: optional embedding model for labs with retrieval (offline default otherwise).
+    ``moderator``: optional moderation model for labs that screen messages (offline default otherwise).
+    ``local_model``: optional model on this machine, for data that must not go to a cloud model."""
 
     flaky: float = 0.0
     embedder: Any = None
+    moderator: Any = None
+    local_model: Any = None
 
 
 class LabEnv:

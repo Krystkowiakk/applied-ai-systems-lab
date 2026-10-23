@@ -38,7 +38,7 @@ the technique is listed here so the map is complete; it is built next.
 | Safeguards inside the tool, not in the prompt: read-only engine, approval token | [`plant-database`](labs.md#plant-database), [`maintenance-portal`](labs.md#maintenance-portal) | built |
 | Tools shaped by the questions they must answer; their names, descriptions and schemas measured without the system prompt | every lab, `--promptless` ([evals](evals.md#tool-descriptions-as-a-prompt)) | built |
 | Two tools instead of a long list: `search_tools` and `call_tool`, with the answer tools pinned | [`mcp/discovery.py`](../src/aisyslab/mcp/discovery.py) | built |
-| Exact formats (records, reports) rendered by code from the fields the model fills | quality claim assistant | planned |
+| Exact formats (records, reports) rendered by code from the fields the model fills | [`quality-claims`](labs.md#quality-claims) (8D record) | built |
 | Tools as a library: the agent writes code that calls them, instead of one call per step | production schedule | planned |
 
 ## MCP
@@ -134,13 +134,14 @@ the technique is listed here so the map is complete; it is built next.
 | Human approval bound to one irreversible action | [`maintenance-portal`](labs.md#maintenance-portal), `--operator ask` | built |
 | Read-only by default, enforced by the database engine | [`plant-database`](labs.md#plant-database) | built |
 | A sender trust rule against look-alike domains | [`inbox`](labs.md#inbox) | built |
-| Data classified before anything is sent to a model; the most sensitive goes only to a local model | quality claim assistant | planned |
-| A quarantined extraction step: a model without tools turns untrusted text into validated fields | quality claim assistant | planned |
-| Anonymisation in layers, with reversible placeholders | quality claim assistant | planned |
+| Data classified before anything is sent to a model; the most sensitive goes only to a local model | [guardrails](guardrails.md#classify-then-anonymise-in-layers), `--local-model` | built |
+| A quarantined extraction step: a model without tools turns untrusted text into validated fields | [guardrails](guardrails.md#quarantined-extraction) | built |
+| Anonymisation in layers, with reversible placeholders | [guardrails](guardrails.md#classify-then-anonymise-in-layers) | built |
 | A moderation hook: input checked before it reaches any provider | [maintenance request service](runtime.md#one-gateway-for-every-model-call) | built |
-| Moderation by a moderation model, with categories and thresholds | quality claim assistant | planned |
-| A topic guard: a second model checks that the answer stays on topic | quality claim assistant | planned |
-| A tamper-evident audit log of model calls and decisions | quality claim assistant | planned |
+| Moderation by a moderation model, with categories and thresholds | [guardrails](guardrails.md#moderation-with-thresholds-per-category), `--moderation openai` | built |
+| A topic guard: a second model checks that the answer stays on topic | [guardrails](guardrails.md#a-topic-guard-on-replies) | built |
+| A tamper-evident audit log of model calls and decisions | [guardrails](guardrails.md#a-signed-chained-audit-log) | built |
+| A leak check at the boundary: a prompt holding personal data is blocked before it leaves | [guardrails](guardrails.md#the-leak-check) | built |
 | Code written by the model runs in a sandbox with time, memory and network limits | production schedule | planned |
 
 ## Running it as a service

@@ -138,6 +138,17 @@ def _shared(p: argparse.ArgumentParser) -> None:
     )
     p.add_argument("--embedding-model", default=None, help="Embedding model id for --embedder openai/local.")
     p.add_argument(
+        "--moderation",
+        choices=["keywords", "openai"],
+        default="keywords",
+        help="Moderation for labs that screen messages: an offline keyword list, or OpenAI's moderation model.",
+    )
+    p.add_argument(
+        "--local-model",
+        default=None,
+        help="A model on this machine (OpenAI-compatible server) for data that must stay local.",
+    )
+    p.add_argument(
         "--operator",
         choices=["auto", "ask"],
         default="auto",
@@ -246,7 +257,17 @@ def _options(args: argparse.Namespace) -> EnvOptions:
         embedder = OpenAICompatibleEmbedder(
             args.embedding_model or "text-embedding-nomic-embed-text-v1.5", base_url=args.base_url or DEFAULT_LOCAL_URL
         )
-    return EnvOptions(flaky=args.flaky, embedder=embedder)
+    moderator = None
+    if args.moderation == "openai":
+        from .guardrails.moderation import OpenAIModeration
+
+        moderator = OpenAIModeration()
+    local_model = (
+        make_model("local", args.local_model, base_url=args.base_url if args.provider == "local" else None)
+        if args.local_model
+        else None
+    )
+    return EnvOptions(flaky=args.flaky, embedder=embedder, moderator=moderator, local_model=local_model)
 
 
 def _configure(args: argparse.Namespace) -> Callable[[Any], None] | None:
