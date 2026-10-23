@@ -18,6 +18,7 @@ from .core.runner import RunReport, run_once
 from .core.trace import read_trace, render_trace
 from .labs import LABS, get_lab
 from .providers import PROVIDERS, make_model
+from .visual import cli as card_cli
 from .voice import cli as voice_cli
 
 
@@ -90,6 +91,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     web.add_argument("--model", default="gpt-5-search-api")
 
     voice_cli.add_parser(sub)
+    card_cli.add_parser(sub)
 
     ten = sub.add_parser("tenant", help="Create a tenant of the service and print its token (shown once).")
     ten.add_argument("name")
@@ -129,6 +131,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "serve":
         try:
             return _serve(args)
+        except ModelError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+    if args.command == "card":
+        try:
+            return card_cli.run(args)
         except ModelError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2

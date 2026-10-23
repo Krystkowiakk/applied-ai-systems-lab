@@ -28,7 +28,7 @@ code and by an agent. On real work the useful question is rarely "can a model do
 | [`shift-handover`](docs/labs.md#shift-handover) | What does the next shift need to know? | observational memory, scopes, facts that supersede older ones |
 | [`procedures-rag`](docs/labs.md#procedures-rag) | What do the procedures say? Answer, cite, or say it is not covered | hybrid retrieval, search across languages, checked citations |
 | [Voice on the shop floor](docs/voice.md) | Voice notes at the machine filed as work requests; a spoken answer for the shift lead | speech-to-text grounded in the plant's vocabulary, speech cached and said at most once, a voice cascade on a latency budget |
-| Visual work instructions *(planned)* | An instruction card for a maintenance step | image generation, a template in code, a vision check |
+| [Visual work instructions](docs/visual.md) | An instruction card for a maintenance step, released only after a check | a card drawn in code, a generated illustration with no text in it, two vision checks decided in code |
 
 **Industrial planning**
 
@@ -146,7 +146,8 @@ aisyslab eval optimize            # prompt optimisation, offline stand-ins
 aisyslab tenant demo              # a token for the service (shown once)
 aisyslab serve --demo             # the service and its web UI on :8000, without a model
 aisyslab voice notes              # the voice-note pipelines on recorded transcripts
-pytest                            # 315 offline tests
+aisyslab card HP-07               # a work instruction card, drawn in code (not released: unchecked)
+pytest                            # 321 offline tests
 ```
 
 With a model (keys are read from the environment, never from files in the repo):
@@ -170,6 +171,7 @@ aisyslab eval triage --provider openai --models gpt-5-mini,gpt-5 --judge        
 aisyslab search "ISO 4414 pneumatic safety"                                               # the research SearchAPI on the real web
 aisyslab voice notes --speech openai --provider openai --model gpt-5-mini                 # speak, transcribe and file ten voice notes
 aisyslab voice ask --speech openai --provider openai --model gpt-5-mini                   # ask by voice, hear the answer, with stage timings
+aisyslab card HP-07 --images openai --provider openai --model gpt-5-mini                  # generate the illustration, check it, read the card back
 aisyslab serve --provider anthropic --fallback-provider openai                            # the service, with a fallback model
 aisyslab trace runs/traces/<file>.jsonl                                                   # replay a run as a timeline
 ```

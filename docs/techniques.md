@@ -93,7 +93,8 @@ the technique is listed here so the map is complete; it is built next.
 | A speech pipeline evaluated step by step on recorded audio, each step's gain measured | [voice](voice.md#the-evaluation-ten-voice-notes) | built |
 | Text-to-speech cached by text, voice and model; an utterance that may have been delivered is never replayed | [voice](voice.md#speech-that-is-paid-for-once-and-said-once), [`voice/delivery.py`](../src/aisyslab/voice/delivery.py) | built |
 | A voice agent as a cascade (speech-to-text, model, text-to-speech) with a latency budget per stage, streamed by sentence, a filler when the model is slow | [voice](voice.md#a-voice-agent-as-a-cascade-with-a-latency-budget-per-stage), [`voice/cascade.py`](../src/aisyslab/voice/cascade.py) | built |
-| Image generation, a template rendered in code, and a vision check before the result is used | visual work instructions | planned |
+| Image generation, a template rendered in code, and a vision check before the result is used | [visual](visual.md), [`visual/check.py`](../src/aisyslab/visual/check.py) | built |
+| A vision check that lists what it sees, with the decision in code; a read-back of the rendered result against its source | [visual](visual.md#two-checks-before-the-card-is-used) | built |
 
 ## Several agents
 
