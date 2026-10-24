@@ -7,8 +7,9 @@
 runnable example from plant operations, industrial planning or software building.**
 
 I work in operations and build AI systems and tools for it. This repository is a snapshot of that
-toolbox: agents and the tools they call, retrieval, several agents on one task, MCP, evaluation,
-safety and the service around them. Every technique is shown on an example where it makes sense.
+toolbox: agents and the tools they call, retrieval and research, graphs, memory, several agents on
+one task, code that a model writes and a sandbox runs, voice and images, MCP, evaluation, safety,
+and the service around them. Every technique is shown on an example where it makes sense.
 Every example has a verifier that judges the result in code, and most are solved twice, by plain
 code and by an agent. On real work the useful question is rarely "can a model do this?" It is
 "where does the model earn its place, and what does it cost when it doesn't?"
@@ -111,19 +112,22 @@ shell, guessed an API token and overwrote the wrong lines of the config, until i
 out. `gpt-5` repaired the same box in 24 calls ($0.07). Two seeds per lab say what works, not how
 often; agent results also move with the model and the day.
 
-`shift-handover` came later and took three live runs. The first failed and cost $0.55: the
-reflector never got the record under its 400-token budget and the agent called it 21 times. With
-the cost bounded in code (two reflector calls, then the record is cut to fit; three reflections on
-request), the second scored 4 of 7: the observer restated old items under new dates and the
-assistant searched the wrong scope. With those fixed, the third, on 24 October at low effort, was
-accepted on its second submission for $0.05. `quality-claims`, also added later, was accepted on
-its first submission (seed 0, low effort, OpenAI's moderation) for about a cent,
-`production-schedule` on its second, after it was told its plan was too late and wrote a search, and
-`part-research` on its fifth, after a verifier bug that had rejected its first, correct answer was
-fixed ([research.md](docs/research.md#what-the-live-runs-showed)). `parts-graph` failed its first
-run, when every extracted fact was rejected over a prompt that showed type names, and was accepted
-on its second submission after the fix ([graph.md](docs/graph.md#what-the-live-runs-showed)).
-Produce your own results, with your key or a local model:
+The labs added later were run live on 23 and 24 October, on seed 0 with `gpt-5-mini`, until accepted.
+What failed on the way changed the code, and each lab's page says how:
+
+| Lab | Live runs | Accepted | Cost per run | What the failed runs changed |
+|---|---|---|---|---|
+| `shift-handover` | 3 | third run, second submission | $0.55, $0.04, $0.05 | the reflector's calls bounded in code; the observer kept from restating old items; recall by scope |
+| `quality-claims` | 1 | first submission, with OpenAI's moderation | $0.01 | - |
+| `production-schedule` | 1 | second submission, after it wrote a search | $0.01 | - |
+| `part-research` | 2 | second run, fifth submission | $0.03, $0.02 | a verifier bug that rejected a correct answer ([research](docs/research.md#what-the-live-runs-showed)) |
+| `parts-graph` | 2 | second run, second submission | $0.03, $0.01 | an extraction prompt that invited type names, the parser's messages, the build report ([graph](docs/graph.md#what-the-live-runs-showed)) |
+
+The modules without a lab were run live once each, and their pages say what happened: a search on
+the real web, ten voice notes spoken and transcribed and a voice cascade timed stage by stage, two
+instruction cards (the first check let letter-like marks through), triage in batches and from an
+interview, and a fine-tuning job the provider refused. All the live runs on 24 October cost about
+$0.42. Produce your own results, with your key or a local model:
 
 ```bash
 aisyslab bench --solvers baseline,agent --provider openai --model gpt-5-mini --seeds 0-4
@@ -244,11 +248,12 @@ flowchart LR
     Runner --> Trace["JSONL trace + report<br/>tokens, calls, verdicts"]
 ```
 
-The harness is about 1,800 lines with no agent framework: provider adapters translate one neutral
+The harness is about 1,900 lines with no agent framework: provider adapters translate one neutral
 message format to the OpenAI Chat Completions and Anthropic Messages APIs (assistant turns are
 replayed verbatim so reasoning blocks survive the tool loop), the loop enforces budgets, and labs
-plug in through a small contract. MCP, orchestration, evaluation and the service runtime are
-separate packages on top of it. Details and trade-offs: [docs/architecture.md](docs/architecture.md).
+plug in through a small contract. Everything else (MCP, orchestration, memory, guardrails, the
+sandbox, research, the graph, voice, visual, evaluation and the service runtime) is a separate
+package on top of it. Details and trade-offs: [docs/architecture.md](docs/architecture.md).
 
 ## Honest limits
 

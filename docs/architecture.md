@@ -2,15 +2,27 @@
 
 ```
 src/aisyslab/
-  core/        harness: messages, model contract, tools, agent loop, tracing, retries, lab contract, runner, bench
-  providers/   OpenAI Chat Completions (and any OpenAI-compatible server), Anthropic Messages
-  labs/        nine labs: env.py, baseline.py, agent.py, __init__.py each
-  cli.py       aisyslab list | show | run | bench | trace
+  core/           harness: messages, model contract, tools, agent loop, tracing, retries, lab contract, runner, bench
+  providers/      OpenAI Chat Completions (and any OpenAI-compatible server), Anthropic Messages
+  labs/           fifteen labs: env.py, baseline.py, agent.py, __init__.py each, some with a world or corpus module
+  mcp/            the labs as MCP servers, an MCP host, tool discovery
+  orchestration/  a dependency graph, a shared workspace, delegation to specialists
+  memory/         observational memory: observer, reflector, scopes, a record on a token budget
+  guardrails/     classification, anonymisation, moderation, quarantined extraction, a topic guard, an audit log
+  sandbox/        model-written Python in a separate process, with limits
+  research/       a search API behind one interface, a polite crawler, checked citations
+  graph/          a property graph with dates on its edges, extraction checked by a parser
+  voice/          speech-to-text grounded in the plant's vocabulary, speech said once, a voice cascade
+  visual/         work instruction cards drawn in code, generated illustrations, vision checks
+  evals/          eval sets, graders, a calibrated judge, prompt optimisation, batches, interviews, fine-tuning
+  runtime/        the maintenance request service: model gateway, durable jobs, API, web UI, cron
+  cli.py          aisyslab list | show | run | bench | trace | eval | mcp | serve | tenant | search | voice | card
 ```
 
-No agent framework. The harness is small enough to read in one sitting, and owning it keeps the
-things that matter in production under control: what goes into the context, how tool errors are
-shown to the model, how budgets are enforced, and what each run costs.
+No agent framework. The harness (`core/` and `providers/`, about 1,900 lines) is small enough to
+read in one sitting, and owning it keeps the things that matter in production under control: what
+goes into the context, how tool errors are shown to the model, how budgets are enforced, and what
+each run costs. Every other package is built on it and on nothing else of its own.
 
 ## Messages and providers
 
@@ -125,7 +137,8 @@ hard-coded because they change faster than code.
 1. Create `src/aisyslab/labs/<name>/` with `env.py` (subclass `LabEnv`, call `self._api(...)` in
    every API method, return `self._record(Verdict(...))` from the verifier).
 2. Write `baseline.py` with `solve(env, ctx)` using `ctx.call` and `ctx.submit`.
-3. Write `agent.py` with tools built on `ctx.tool_call` and `ctx.submit(..., as_tool=True)`, ending in
-   `run_agent(..., goal_reached=lambda: env.accepted)`.
+3. Write `agent.py` with an `AgentSpec`: the system prompt, the task, and a toolbox factory whose
+   tools call `ctx.tool_call` and `ctx.submit(..., as_tool=True)`. `SPEC.solve` runs the loop until
+   the environment accepts, and the same factory serves the lab over MCP.
 4. Add the `Lab` card in `__init__.py`, register it in `labs/__init__.py`, and let
    `tests/test_labs.py` pick it up.
