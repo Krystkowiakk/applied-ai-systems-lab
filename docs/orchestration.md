@@ -10,12 +10,13 @@ independent steps run in parallel threads, and a cycle or an unknown dependency 
 anything runs. The `shift-briefing` baseline is three investigations and a report:
 
 ```python
-run_dag([
+steps = [
     Step("root_cause", root_cause),
     Step("blocked", blocked),
     Step("held", held),
     Step("briefing", briefing, needs=("root_cause", "blocked", "held")),
-])
+]
+run_dag(steps)
 ```
 
 ## When it is not: an orchestrator with specialists

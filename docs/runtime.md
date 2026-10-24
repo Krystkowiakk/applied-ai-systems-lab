@@ -129,7 +129,7 @@ FanOut(
     name="morning-briefing",
     collectors=("line-incident", "plant-database", "quality-gate"),
     assembler="briefing-writer",
-    collect_at="0 4 * * 1-5",   # 04:00 on weekdays
+    collect_at="0 4 * * 1-5",  # 04:00 on weekdays
     assemble_at="0 5 * * 1-5",  # an hour of slack
     process="morning-briefing",
 )

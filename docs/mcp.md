@@ -51,9 +51,9 @@ HTTP URL), audits what each offers and merges their tools into one toolbox:
 from aisyslab.mcp.host import McpHost
 
 with McpHost({"plant": "http://127.0.0.1:8000/mcp", "gate": stdio_params}) as host:
-    for server in host.audit():          # tools and resources, before a model sees them
+    for server in host.audit():  # tools and resources, before a model sees them
         print(server.prefix, server.tools, server.resources)
-    toolbox = host.toolbox()             # plant__run_query, gate__train_tree, ...
+    toolbox = host.toolbox()  # plant__run_query, gate__train_tree, ...
 ```
 
 - **Prefixes against collisions.** Two servers may both offer `search`; the host exposes
