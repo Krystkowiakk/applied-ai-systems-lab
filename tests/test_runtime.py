@@ -422,23 +422,23 @@ def test_budgets_moderation_and_the_cache_are_enforced_in_the_gateway() -> None:
         gateway.bind(tenant_id=tenant).complete(system="s", messages=ticket, tools=[])
 
 
-def test_reasoning_state_goes_back_only_to_the_model_that_wrote_it() -> None:
+def test_reasoning_state_goes_back_only_to_the_provider_that_wrote_it() -> None:
     seen: dict[str, list[Any]] = {}
 
-    def recorder(name: str) -> ScriptedModel:
+    def recorder(name: str, provider: str) -> ScriptedModel:
         def policy(_system: str, messages: Sequence[Message], _tools: Sequence[ToolSpec]) -> ModelTurn:
             seen[name] = [m.provider_state for m in messages if m.role == "assistant"]
             turn = text_turn("ok")
             turn.provider_state = [f"{name}-reasoning"]
             return turn
 
-        return ScriptedModel(policy, name=name)
+        return ScriptedModel(policy, name=name, provider=provider)
 
     store = Store()
     tenant, _ = store.create_tenant("plant-a")
-    via_a = ModelGateway({"default": [recorder("a")]}, store).bind(tenant_id=tenant)
+    via_a = ModelGateway({"default": [recorder("a", "anthropic")]}, store).bind(tenant_id=tenant)
     turn = via_a.complete(system="s", messages=[Message(role="user", content="hi")], tools=[])
-    assert turn.provider_state == {"by": "a", "state": ["a-reasoning"]}
+    assert turn.provider_state == {"by": "anthropic", "state": ["a-reasoning"]}
 
     history = [
         Message(role="user", content="hi"),
@@ -446,10 +446,12 @@ def test_reasoning_state_goes_back_only_to_the_model_that_wrote_it() -> None:
         Message(role="user", content="again"),
     ]
     via_a.complete(system="s", messages=history, tools=[])
-    ModelGateway({"default": [recorder("b")]}, store).bind(tenant_id=tenant).complete(
-        system="s", messages=history, tools=[]
-    )
-    assert seen["a"] == [["a-reasoning"]] and seen["b"] == [None]
+    for name, provider in (("b", "openai"), ("c", "anthropic")):
+        ModelGateway({"default": [recorder(name, provider)]}, store).bind(tenant_id=tenant).complete(
+            system="s", messages=history, tools=[]
+        )
+    # Another provider cannot read the blocks; another model of the same provider gets them unchanged.
+    assert seen["a"] == [["a-reasoning"]] and seen["b"] == [None] and seen["c"] == [["a-reasoning"]]
 
 
 def test_cron_expressions() -> None:

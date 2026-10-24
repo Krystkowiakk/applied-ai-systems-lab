@@ -60,6 +60,11 @@ class OpenAIChatModel:
     def name(self) -> str:
         return self._label
 
+    @property
+    def provider(self) -> str:
+        # A local server speaks the same API, but reasoning state from one never goes to the other.
+        return "local" if self._label.startswith("local:") else "openai"
+
     def complete(
         self,
         *,
@@ -89,17 +94,24 @@ class OpenAIChatModel:
         payload = self._payload(system, messages, tools, max_output_tokens)
         if self.stream_usage:
             payload["stream_options"] = {"include_usage": True}
-        # The stream helper raises when the length limit is reached; the partial completion it
-        # carries is a truncated turn, which the agent loop already knows how to handle.
-        length_limit = getattr(self._openai, "LengthFinishReasonError", ())
+        # The stream helper raises when the length limit or the content filter stops the answer.
+        # The completion it carries is parsed like any other: a truncated turn, or a refusal.
+        stopped = tuple(
+            getattr(self._openai, name)
+            for name in ("LengthFinishReasonError", "ContentFilterFinishReasonError")
+            if hasattr(self._openai, name)
+        )
         try:
             with self._client.chat.completions.stream(**payload) as stream:
                 for event in stream:
                     if event.type == "content.delta":
                         on_text(event.delta)
                 final = stream.get_final_completion()
-        except length_limit as exc:
-            final = exc.completion
+        except stopped as exc:
+            final = getattr(exc, "completion", None)  # type: ignore[assignment]
+            if final is None:  # filtered before anything came back
+                usage = Usage(input_tokens=estimate_tokens(system + "".join(m.content for m in messages)))
+                return ModelTurn(text="", tool_calls=[], usage=usage, stop_reason="refusal", model=self.model)
         except self._openai.APIError as exc:
             raise ModelError(f"{type(exc).__name__}: {exc}") from exc
         turn = parse_openai_response(final)
@@ -145,6 +157,8 @@ def to_openai_messages(messages: Sequence[Message]) -> list[dict[str, Any]]:
             else:
                 out.append({"role": "user", "content": m.content})
         elif m.role == "assistant":
+            if not m.content and not m.tool_calls:
+                continue  # an empty turn (output used up by reasoning) is not valid to send back
             entry: dict[str, Any] = {"role": "assistant", "content": m.content or None}
             if m.tool_calls:
                 entry["tool_calls"] = [

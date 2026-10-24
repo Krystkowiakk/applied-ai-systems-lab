@@ -46,6 +46,10 @@ class AnthropicModel:
     def name(self) -> str:
         return self.model
 
+    @property
+    def provider(self) -> str:
+        return "anthropic"
+
     def complete(
         self,
         *,
@@ -144,14 +148,15 @@ def to_anthropic_messages(messages: Sequence[Message]) -> list[dict[str, Any]]:
                 out.append({"role": "user", "content": blocks})
             else:
                 out.append({"role": "user", "content": m.content})
-        elif m.provider_state is not None:
+        elif m.provider_state:
             out.append({"role": "assistant", "content": m.provider_state})
         else:
             content: list[dict[str, Any]] = []
             if m.content:
                 content.append({"type": "text", "text": m.content})
             content.extend({"type": "tool_use", "id": c.id, "name": c.name, "input": c.arguments} for c in m.tool_calls)
-            out.append({"role": "assistant", "content": content})
+            if content:  # an empty assistant turn is not valid to send back
+                out.append({"role": "assistant", "content": content})
     flush()
     return out
 
@@ -166,20 +171,31 @@ _STOP: dict[str, StopReason] = {
 
 
 def parse_anthropic_response(response: Any) -> ModelTurn:
+    # A server-side fallback marks where a declining model's output ends with a "fallback"
+    # block. What came before it is the declined attempt: never run its tool calls, never send
+    # it back. The turn is what the serving model wrote after the last boundary.
+    blocks = list(response.content)
+    boundary = max((i for i, b in enumerate(blocks) if b.type == "fallback"), default=-1)
+    served = blocks[boundary + 1 :]
     texts: list[str] = []
     calls: list[ToolCall] = []
-    for block in response.content:
+    for block in served:
         if block.type == "text":
             texts.append(block.text)
         elif block.type == "tool_use":
             arguments = block.input if isinstance(block.input, dict) else {}
             calls.append(ToolCall(id=block.id, name=block.name, arguments=dict(arguments)))
     u = response.usage
-    cache_read = getattr(u, "cache_read_input_tokens", 0) or 0
-    cache_write = getattr(u, "cache_creation_input_tokens", 0) or 0
+    # With iterations (a declined hop and the one that served), each attempt is billed: sum them.
+    hops = [
+        i for i in (getattr(u, "iterations", None) or []) if getattr(i, "type", "") in ("message", "fallback_message")
+    ]
+    parts = hops or [u]
+    cache_read = sum(getattr(p, "cache_read_input_tokens", 0) or 0 for p in parts)
+    cache_write = sum(getattr(p, "cache_creation_input_tokens", 0) or 0 for p in parts)
     usage = Usage(
-        input_tokens=(u.input_tokens or 0) + cache_read + cache_write,
-        output_tokens=u.output_tokens or 0,
+        input_tokens=sum(p.input_tokens or 0 for p in parts) + cache_read + cache_write,
+        output_tokens=sum(p.output_tokens or 0 for p in parts),
         cached_input_tokens=cache_read,
     )
     stop = _STOP.get(response.stop_reason or "", "other")
@@ -191,5 +207,5 @@ def parse_anthropic_response(response: Any) -> ModelTurn:
         usage=usage,
         stop_reason=stop,
         model=getattr(response, "model", "") or "",
-        provider_state=list(response.content),
+        provider_state=served,
     )

@@ -200,7 +200,7 @@ class GatewayModel:
             if not gateway.available(model.name):
                 errors.append(f"{model.name}: cooling down")
                 continue
-            history = [_for_model(m, model.name) for m in messages]
+            history = [_for_model(m, provider_of(model)) for m in messages]
             started = time.perf_counter()
             streamed = False
             try:
@@ -257,8 +257,9 @@ class GatewayModel:
                     },
                 )
             if turn.provider_state is not None:
-                # Reasoning blocks are bound to the model that wrote them; remember which one.
-                turn.provider_state = {"by": model.name, "state": turn.provider_state}
+                # Reasoning blocks belong to the provider that wrote them; another provider cannot
+                # read them, while the same provider's API drops what a model cannot use.
+                turn.provider_state = {"by": provider_of(model), "state": turn.provider_state}
             return turn
         raise ModelUnavailable(f"No model on route '{self._route}' answered: " + "; ".join(errors))
 
@@ -267,12 +268,16 @@ def _ms(started: float) -> float:
     return round((time.perf_counter() - started) * 1000, 1)
 
 
-def _for_model(message: Message, model: str) -> Message:
-    """Replay provider state (reasoning blocks) only to the model that produced it."""
+def provider_of(model: Any) -> str:
+    return str(getattr(model, "provider", type(model).__name__))
+
+
+def _for_model(message: Message, provider: str) -> Message:
+    """Replay provider state (reasoning blocks) only to the provider that produced it."""
     state = message.provider_state
     if message.role != "assistant" or not isinstance(state, dict) or "by" not in state:
         return message
-    return dataclasses.replace(message, provider_state=state["state"] if state["by"] == model else None)
+    return dataclasses.replace(message, provider_state=state["state"] if state["by"] == provider else None)
 
 
 def _cache_key(tenant: str, route: str, system: str, messages: Sequence[Message], tools: Sequence[ToolSpec]) -> str:

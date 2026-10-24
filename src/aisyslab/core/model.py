@@ -61,8 +61,11 @@ class ScriptedModel:
     can be exercised in tests.
     """
 
-    def __init__(self, script: Policy | Sequence[ModelTurn], name: str = "scripted") -> None:
+    def __init__(
+        self, script: Policy | Sequence[ModelTurn], name: str = "scripted", provider: str = "scripted"
+    ) -> None:
         self._name = name
+        self.provider = provider
         if callable(script):
             self._policy: Policy = script
         else:

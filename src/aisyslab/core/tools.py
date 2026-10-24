@@ -24,7 +24,7 @@ class ToolError(Exception):
     the model as a structured error result; it never ends the run.
     """
 
-    def __init__(self, message: str, *, hint: str | None = None, **data: Any) -> None:
+    def __init__(self, message: str, /, *, hint: str | None = None, **data: Any) -> None:
         super().__init__(message)
         self.hint = hint
         self.data = data
@@ -121,11 +121,13 @@ class Toolbox:
             return done(_error(f"Invalid arguments for {call.name}: {problems}"), error=True)
         try:
             value = tool.handler(args)
+            # Inside the try: a value JSON cannot encode is the tool's bug, not the run's end.
+            content = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
         except ToolError as exc:
             return done(_error(str(exc), hint=exc.hint, **exc.data), error=True)
         except Exception as exc:  # a bug in a tool must not take the whole run down
             return done(_error(f"Internal tool failure ({type(exc).__name__}): {exc}"), error=True, internal=True)
-        return done(value if isinstance(value, str) else json.dumps(value, ensure_ascii=False), error=False)
+        return done(content, error=False)
 
 
 def bounded(text: str, limit: int) -> tuple[str, bool]:
@@ -173,7 +175,7 @@ def _clean_schema(node: Any) -> Any:
                 cleaned[key] = _clean_schema(value)
         if cleaned.get("type") == "object":
             cleaned.setdefault("properties", {})
-            cleaned["additionalProperties"] = False
+            cleaned.setdefault("additionalProperties", False)  # a dict field keeps its value schema
         return cleaned
     if isinstance(node, list):
         return [_clean_schema(v) for v in node]

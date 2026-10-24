@@ -144,6 +144,18 @@ def run_agent(
             break
 
         for call in turn.tool_calls:
+            if tool_calls >= config.max_tool_calls:  # the budget holds inside a turn too
+                messages.append(
+                    Message(
+                        role="tool",
+                        content=json.dumps({"error": "Tool budget used up; this call was not run."}),
+                        tool_call_id=call.id,
+                        tool_name=call.name,
+                        is_error=True,
+                    )
+                )
+                tracer.event("tool", step=step, name=call.name, arguments=call.arguments, not_run="tool budget")
+                continue
             result = toolbox.execute(call)
             tool_calls += 1
             tracer.event(

@@ -7,6 +7,7 @@ Only numbers, parentheses and + - * / // % ** are accepted; there are no names t
 from __future__ import annotations
 
 import ast
+import math
 import operator
 from collections.abc import Callable
 
@@ -41,17 +42,26 @@ def evaluate(expression: str) -> float:
             return node.value
         if isinstance(node, ast.BinOp) and type(node.op) in _BINARY:
             left, right = walk(node.left), walk(node.right)
-            if isinstance(node.op, ast.Pow) and abs(right) > 10:
-                raise ToolError("Exponent too large (max 10).")
+            if isinstance(node.op, ast.Pow):
+                if abs(right) > 10:
+                    raise ToolError("Exponent too large (max 10).")
+                # Nested powers grow without bound ((9**9)**9...): cap the result, not just the exponent.
+                if abs(left) > 1 and abs(right) * math.log10(abs(left)) > 300:
+                    raise ToolError("Result too large (more than 300 digits).")
             try:
                 return _BINARY[type(node.op)](left, right)
             except ZeroDivisionError as exc:
                 raise ToolError("Division by zero.") from exc
+            except OverflowError as exc:
+                raise ToolError("Result too large.") from exc
         if isinstance(node, ast.UnaryOp) and type(node.op) in _UNARY:
             return _UNARY[type(node.op)](walk(node.operand))
         raise ToolError("Only numbers, parentheses and + - * / // % ** are allowed.")
 
-    return walk(tree)
+    value = walk(tree)
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ToolError("Result too large.")
+    return value
 
 
 class CalculateArgs(BaseModel):

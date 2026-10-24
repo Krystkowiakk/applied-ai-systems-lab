@@ -65,8 +65,8 @@ class RuntimeConfig:
 
 def jsonable(value: Any) -> Any:
     """Provider objects (e.g. SDK content blocks) as plain JSON, so they can be stored and replayed."""
-    if hasattr(value, "model_dump"):
-        return value.model_dump(mode="json", exclude_none=True)
+    if hasattr(value, "model_dump"):  # by alias, as the SDK itself sends them ("from", not "from_")
+        return value.model_dump(mode="json", by_alias=True, exclude_none=True)
     if isinstance(value, dict):
         return {str(k): jsonable(v) for k, v in value.items()}
     if isinstance(value, list | tuple):
