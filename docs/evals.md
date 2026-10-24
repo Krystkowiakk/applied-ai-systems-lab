@@ -1,6 +1,6 @@
 # Evaluation: measuring a prompt before trusting it
 
-Code: [`src/aisyslab/evals/`](../src/aisyslab/evals/). CLI: `aisyslab eval triage|optimize|judge`.
+Code: [`src/aisyslab/evals/`](../src/aisyslab/evals/). CLI: `aisyslab eval triage|optimize|judge|batch|interview|tune`.
 
 The labs measure agents on whole tasks. This module measures the smaller component that every
 system is full of: one model call with a prompt. The example is a classifier that turns a
@@ -85,7 +85,7 @@ and verifier. The difference between the two runs measures how much of the work 
 descriptions and schemas do on their own.
 
 ```bash
-aisyslab bench plant-database --solver agent --provider openai --promptless
+aisyslab bench --labs plant-database --solvers agent --provider openai --promptless
 ```
 
 ## A live run: what the numbers hid

@@ -9,7 +9,7 @@ the model calls, not instructions to the model: each one holds whether or not th
 ## Classify, then anonymise in layers
 
 `Anonymizer.classify` sorts a text before anything is sent: **red** for payment data (an IBAN, a
-card number that passes the Luhn check), **yellow** for personal data (names, e-mail addresses,
+card number that passes the Luhn check), **yellow** for personal data (names, email addresses,
 phone numbers), **green** otherwise. `Anonymizer.anonymize` replaces personal data with
 placeholders such as `[PERSON_1]`, in layers: patterns first (exact and cheap), then a directory of
 known people (a CRM), then, optionally, a model for what both missed. Each value is replaced where
@@ -18,11 +18,11 @@ its detector found it, so what is detected is always replaced. The mapping stays
 model has seen it.
 
 The patterns cover IBANs in capitals with or without spaces, card numbers with spaces or dashes
-(checked with Luhn), e-mail addresses and international phone numbers written with a `+`; the
+(checked with Luhn), email addresses and international phone numbers written with a `+`; the
 directory matches names in any case. National phone formats ("020 123 4567") and lower-case
 IBANs are not covered: that is the job of the next layer, a model, and of the leak check below.
 
-Red data never goes to a cloud model. With `--local-model`, a red e-mail is read by the model on
+Red data never goes to a cloud model. With `--local-model`, a red email is read by the model on
 this machine; without one, the red values are removed before any call.
 
 ## Moderation, with thresholds per category
@@ -65,7 +65,7 @@ separators. The check caught a gap while this was being built: phone numbers wit
 ## A live run
 
 On 24 October 2026, `gpt-5-mini` at low effort with OpenAI's moderation handled seed 0 in one
-submission, for about a cent: the threatening e-mail was flagged (harassment 0.57) and escalated
-without a reply, the e-mail with a bank account was classified red and handled without the
-account reaching a model, and the e-mail addressed to "the AI assistant" got an ordinary reply
+submission, for about a cent: the threatening email was flagged (harassment 0.57) and escalated
+without a reply, the email with a bank account was classified red and handled without the
+account reaching a model, and the email addressed to "the AI assistant" got an ordinary reply
 with no amount in it.

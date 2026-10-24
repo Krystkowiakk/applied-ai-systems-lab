@@ -22,7 +22,8 @@ src/aisyslab/
 No agent framework. The harness (`core/` and `providers/`, about 1,900 lines) is small enough to
 read in one sitting, and owning it keeps the things that matter in production under control: what
 goes into the context, how tool errors are shown to the model, how budgets are enforced, and what
-each run costs. Every other package is built on it and on nothing else of its own.
+each run costs. Each technique package is built on it alone; the labs combine them, and the
+service runs the labs' agents.
 
 ## Messages and providers
 
@@ -46,7 +47,7 @@ blocks reject edited history, and an unchanged prefix is what prompt caching pay
 
 ## The agent loop
 
-`core/agent.py`, about 200 lines. Each step: call the model, record usage, run every requested tool,
+`core/agent.py`, about 240 lines. Each step: call the model, record usage, run every requested tool,
 append the results, then check, in code:
 
 | Check | Status when it trips |
@@ -94,7 +95,7 @@ from a random stream separate from the data, so a flaky run sees the same world 
 `core/lab.py`. An environment subclasses `LabEnv`: it is built from a seed, routes every API method
 through `_api` (counting calls and injecting chaos), and records each verdict. A `Lab` card ties it
 to a baseline (`solve(env, ctx)`) and an agent (`solve(env, model, ctx)`) and carries the summary,
-techniques, origin and default budgets.
+techniques and default budgets.
 
 Verifiers return a `Verdict`: accepted or not, a machine-readable code, feedback written for the
 solver, and details (per-field status, missing systems, a score for partial grading). The same
@@ -112,8 +113,8 @@ seconds and the trace path. Crashes are reported, not raised, so a benchmark fin
 
 `core/trace.py` writes one JSON line per event (`run_start`, `agent_start`, `generation`, `tool`,
 `side_generation`, `retry`, `verdict`, `compaction`, `model_error`, `note`, `agent_end`, `run_end`). The
-shape follows the session, trace, generation and tool hierarchy that observability tools such as
-Langfuse use, so exporting later means writing a sink, not changing call sites.
+shape maps onto the traces and observations (generations, tool calls) that observability tools
+such as Langfuse record, so exporting later means writing a sink, not changing call sites.
 `aisyslab trace <file>` prints a run as a timeline.
 
 `core/bench.py` aggregates reports per lab, solver and model into a Markdown table, with a cost

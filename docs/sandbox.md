@@ -35,6 +35,6 @@ network without authentication in front of it (see [MCP](mcp.md#over-the-network
 ## A live run
 
 On 24 October 2026, `gpt-5-mini` at low effort solved seed 0 in eight calls, for about a cent. Its
-first two programs failed on its own mistakes; the third found no plan; the fourth proposed a
-feasible one that was 100 minutes late against a bar of 58. Told so, it wrote a local search in its
-next program, printed `New best 230 ... 15`, and submitted a plan 15 minutes late.
+first two programs failed on its own mistakes; the third found no plan; the fourth found a
+feasible plan and submitted it: 100 minutes late against a bar of 58. Given that feedback, its next
+program ran a local search, and it submitted a plan 15 minutes late.

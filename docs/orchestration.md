@@ -28,7 +28,7 @@ run_dag([
   factory) bound to its own environment, so it can check its work before reporting.
 - **Reports through documents.** The specialist writes its findings to the shared workspace and
   ends with a one-line summary; the orchestrator's context grows by a reference, not a transcript.
-- **Accounted and traced.** The specialist's model calls count toward the run's cost, and its
+- **Accounted and traced.** The specialist's model calls count towards the run's cost, and its
   events land in the same trace, tagged with its name (`Tracer.child`).
 
 ## The workspace is the bus

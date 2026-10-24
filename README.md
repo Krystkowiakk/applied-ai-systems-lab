@@ -9,7 +9,7 @@ runnable example from plant operations, industrial planning or software building
 I work in operations and build AI systems and tools for it. This repository is a snapshot of that
 toolbox: agents and the tools they call, retrieval and research, graphs, memory, several agents on
 one task, code that a model writes and a sandbox runs, voice and images, MCP, evaluation, safety,
-and the service around them. Every technique is shown on an example where it makes sense.
+and the service around them. Each technique is shown on a problem it suits.
 Every example has a verifier that judges the result in code, and most are solved twice, by plain
 code and by an agent. On real work the useful question is rarely "can a model do this?" It is
 "where does the model earn its place, and what does it cost when it doesn't?"
@@ -21,7 +21,7 @@ code and by an agent. On real work the useful question is rarely "can a model do
 | Example | The question | What it shows |
 |---|---|---|
 | [`inbox`](docs/labs.md#inbox) | Three facts from the plant mailbox, with corrections and look-alike senders | two-step retrieval, query operators, a sender trust rule |
-| [`line-incident`](docs/labs.md#line-incident) | Why did line 3 stop overnight? | a context budget, reduction in code before any model call |
+| [`line-incident`](docs/labs.md#line-incident) | Why did line 3 stop? | a context budget, reduction in code before any model call |
 | [`maintenance-portal`](docs/labs.md#maintenance-portal) | Re-code one work order and close another | prompt injection handled by design, human approval |
 | [`quality-gate`](docs/labs.md#quality-gate) | Which of tonight's batches pass the gate? | classic ML in code, target leakage |
 | [`shift-briefing`](docs/labs.md#shift-briefing) | One report from three investigations | an orchestrator and specialists, a shared workspace |
@@ -42,7 +42,7 @@ code and by an agent. On real work the useful question is rarely "can a model do
 | [`production-schedule`](docs/labs.md#production-schedule) | Tomorrow's orders on three presses, with the planner's notes | code mode: the model writes a program that plans, run in a sandbox |
 | [`part-research`](docs/labs.md#part-research) | A component is discontinued: what replaces it, from whom, how fast? | web search, a polite crawler, a deep research loop, a cited report |
 | [`parts-graph`](docs/labs.md#parts-graph) | A supplier delays a part: which lines and orders does it hold up, and which can an alternate save? | graph RAG, extraction validated by a parser, facts with dates |
-| [Triage, trained or batched](docs/evals.md#fine-tuning-compared-with-prompting) | The triage model fine-tuned, batched under a schema, or prompted from an interview with the planner | fine-tuning compared with prompting, batches under a provider-enforced schema, a meta-prompt from an interview |
+| [Triage, batched, interviewed, trained](docs/evals.md#many-tickets-in-one-request-under-a-schema) | The triage prompt run in batches, drafted from an interview with the planner, and set against a model trained on its examples | batches under a provider-enforced schema, a meta-prompt from an interview, training compared with prompting |
 
 **Software building**
 
@@ -71,15 +71,15 @@ Measured with `aisyslab bench --seeds 0-19`: 300 runs, no model, no API key, abo
 | `parts-graph` | 1/20 | 0.22 | 16 | Patterns read a plain changeover; a planned move, an assembly sent to stores, a "does not use" and a withdrawn approval fool them |
 | `plant-database` | 20/20 | 1.00 | 2 | A known question is one SQL statement; the agent first has to find where the answer lives |
 | `production-schedule` | 2/20 | 0.20 | 2 | The due-date rule cannot read the planner's notes, and plain due-date order is often far from a searched plan |
-| `quality-gate` | 20/20 | 1.00 | 3 | A decision tree learns the lab's thresholds from 240 batches; reading numbers is code's job |
+| `quality-gate` | 20/20 | 1.00 | 3 | A decision tree learns the quality lab's thresholds from 240 batches; reading numbers is code's job |
 | `quality-claims` | 7/20 | 0.80 | 17 | Patterns read part, batch and quantity; a defect described without the expected words gets the wrong category |
 | `shift-briefing` | 20/20 | 1.00 | 5 | When the plan is known, a parallel graph of three queries beats a team of agents |
 | `shift-handover` | 3/20 | 0.80 | 21 | Keyword rules read the wording they were written for; a suspicion, a "no leaks seen" and a "spare is out" fool them |
 | `procedures-rag` | 0/20 | 0.53 | 14 | Code gets the plain lookups and misses every question that needs reading: an exception, a date, Polish, a "does not" that means yes |
 
-Nine of the fifteen problems fall to under 90 lines of code each (the quality gate also uses a
-125-line decision tree, the same one the agent trains through a tool), on every seed, with zero
-tokens. The same baselines pass with 20% of API calls failing, because retries live in code. In
+Nine of the fifteen problems fall to baselines of under 90 lines each (plus helpers they share with
+the environments and the agents' tools, such as the quality gate's 125-line decision tree and the
+site map's search), on every seed, with zero tokens. The same baselines pass with 20% of API calls failing, because retries live in code. In
 those labs an agent has to justify itself on flexibility, not capability: what happens when the
 email is phrased differently, the fault is new, the map changes, the planner asks another question.
 In the other six, code gets part of the way and no further: keyword rules over customer claims,
@@ -105,25 +105,25 @@ with cached input priced as cached. Twenty runs cost $0.31 in total.
 | `shift-briefing` | 2/2 | 51 | $0.064 | 239 s |
 | `procedures-rag` | 2/2 | 14 | $0.010 | 35 s |
 
-Nine of ten labs fall to the agent too, at a cent or two a run and tens of seconds instead of
-milliseconds. The tenth shows why the verifiers count more than the final answer: in
+Nine of ten labs fall to the agent too, at one or two cents and up to about a minute a run (the
+four-agent shift briefing: six cents and four minutes), instead of milliseconds. The tenth shows why the verifiers count more than the final answer: in
 `service-repair` the model read the deny list, opened a path on it anyway, was blocked by the
 shell, guessed an API token and overwrote the wrong lines of the config, until its 30 steps ran
 out. `gpt-5` repaired the same box in 24 calls ($0.07). Two seeds per lab say what works, not how
 often; agent results also move with the model and the day.
 
-The labs added later were run live on 23 and 24 October, on seed 0 with `gpt-5-mini`, until accepted.
+The other five labs were run live on 23 and 24 October, on seed 0 with `gpt-5-mini`, until accepted.
 What failed on the way changed the code, and each lab's page says how:
 
 | Lab | Live runs | Accepted | Cost per run | What the failed runs changed |
 |---|---|---|---|---|
-| `shift-handover` | 3 | third run, second submission | $0.55, $0.04, $0.05 | the reflector's calls bounded in code; the observer kept from restating old items; recall by scope |
+| `shift-handover` | 3 | third run, second submission | $0.55, $0.04, $0.05 | the reflector's calls bounded in code; the observer kept from restating old items; recall that falls back to every scope |
 | `quality-claims` | 1 | first submission, with OpenAI's moderation | $0.01 | - |
 | `production-schedule` | 1 | second submission, after it wrote a search | $0.01 | - |
 | `part-research` | 2 | second run, fifth submission | $0.03, $0.02 | a verifier bug that rejected a correct answer ([research](docs/research.md#what-the-live-runs-showed)) |
-| `parts-graph` | 2 | second run, second submission | $0.03, $0.01 | an extraction prompt that invited type names, the parser's messages, the build report ([graph](docs/graph.md#what-the-live-runs-showed)) |
+| `parts-graph` | 2 | second run, second submission | $0.03, $0.015 | an extraction prompt that invited type names, the parser's messages, the build report ([graph](docs/graph.md#what-the-live-runs-showed)) |
 
-The modules without a lab were run live once each, and their pages say what happened: a search on
+The modules without a lab were run live too, and their pages say what happened: a search on
 the real web, ten voice notes spoken and transcribed and a voice cascade timed stage by stage, two
 instruction cards (the first check let letter-like marks through), triage in batches and from an
 interview, and a fine-tuning job the provider refused. All the live runs on 24 October cost about
@@ -142,7 +142,7 @@ python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
 
 aisyslab list                     # the fifteen labs
-aisyslab show supply-intake       # scenario, techniques, where it comes from
+aisyslab show supply-intake       # the scenario and its techniques
 aisyslab run supply-intake        # the baseline, streaming its trace
 aisyslab bench --seeds 0-4        # every baseline on five seeds
 aisyslab eval optimize            # prompt optimisation, offline stand-ins
@@ -150,7 +150,7 @@ aisyslab tenant demo              # a token for the service (shown once)
 aisyslab serve --demo             # the service and its web UI on :8000, without a model
 aisyslab voice notes              # the voice-note pipelines on recorded transcripts
 aisyslab card HP-07               # a work instruction card, drawn in code (not released: unchecked)
-pytest                            # 328 offline tests
+pytest                            # 375 offline tests
 ```
 
 With a model (keys are read from the environment, never from files in the repo):
@@ -187,7 +187,7 @@ aisyslab trace runs/traces/<file>.jsonl                                         
 | Lab | The operational question | What makes it hard |
 |---|---|---|
 | [`inbox`](docs/labs.md#inbox) | When is the MES maintenance, what is the contractor VPN code, which change request was approved? | A correction later in the thread, a rotated code, a look-alike sender, a rejected sibling ticket, and a new email arriving mid-run |
-| [`line-incident`](docs/labs.md#line-incident) | Why did line 3 stop overnight? Give the on-call engineer a timeline. | 2,000+ log lines, chronic noise, a red herring, a 500-token budget, and a reviewer that rejects any event not in the log |
+| [`line-incident`](docs/labs.md#line-incident) | Why did line 3 stop on 14 March? Give the on-call engineer a timeline. | 2,000+ log lines, chronic noise, a red herring, a 500-token budget, and a reviewer that rejects any event not in the log |
 | [`service-repair`](docs/labs.md#service-repair) | Get the line gateway running again. | A non-standard shell, forbidden paths that trigger a ban, a rotated token hidden in shell history, a stale lock, one failing check at a time |
 | [`supply-intake`](docs/labs.md#supply-intake) | Which part stops a line tonight, which supplier is late, who do we call, how many units are missing? | JSON, CSV, XML, HTML, notes and a rack photo, several behind misleading file names; ERP stock that the shop floor contradicts |
 | [`spare-part-run`](docs/labs.md#spare-part-run) | Get a spare pump to the stopped line before the deadline. | Forklift battery vs walking time, one-way dismount, no-go zones, rules hidden in documents that must be found first |
@@ -197,14 +197,14 @@ aisyslab trace runs/traces/<file>.jsonl                                         
 | [`plant-database`](docs/labs.md#plant-database) | Which line-3 work orders cannot start because a spare part is short? | Stock split across storerooms and partly reserved, a superseded part number, a stale "waiting parts" status, two assets moved between lines, and a database that refuses writes |
 | [`production-schedule`](docs/labs.md#production-schedule) | Plan tomorrow's sixteen orders on three presses. | Changeovers, a maintenance window, presses that cannot run every family, and two notes from the planner in plain words that a fixed rule never reads |
 | [`quality-gate`](docs/labs.md#quality-gate) | Which of tonight's batches pass the quality gate? | A rule nobody wrote down, 240 inspected batches, a column filled in only after the inspection (target leakage), two sensor dropouts, rare failures above the upper torque limit |
-| [`quality-claims`](docs/labs.md#quality-claims) | Five customer complaints: accept, investigate, reject or hand to a person, record an 8D claim, reply. | Instructions to "the AI assistant" inside an e-mail, a threatening message, a bank account, defects in the customer's own words, and no personal data may reach a cloud model |
-| [`shift-briefing`](docs/labs.md#shift-briefing) | Where did tonight's stoppage start, which work orders are blocked, which batches are held? | Three systems, specialists that cannot see each other's context, and a verifier that names the wrong section but not the items |
+| [`quality-claims`](docs/labs.md#quality-claims) | Five customer complaints: accept, investigate, reject or hand to a person, record an 8D claim, reply. | Instructions to "the AI assistant" inside an email, a threatening message, a bank account, defects in the customer's own words, and no personal data may reach a cloud model |
+| [`shift-briefing`](docs/labs.md#shift-briefing) | Where did the line-3 stoppage start, which work orders are blocked, which batches are held? | Three systems, specialists that cannot see each other's context, and a verifier that names the wrong section but not the items |
 | [`shift-handover`](docs/labs.md#shift-handover) | What does Monday's morning shift need to know from last week's fifteen shift logs? | Logs read once and sealed, a 400-token handover record, a bypass removed later, a limit that changed, a temporary fix made permanent, a suspicion nobody confirmed, the same sensor on two lines |
 | [`procedures-rag`](docs/labs.md#procedures-rag) | A technician's questions about torque, lockout, permits and calibration, answered from the plant's procedures. | A superseded revision, an exception that overrides the rule, a calibration date to compute, a question in Polish, one the procedures do not answer |
 
 Each lab's techniques, traps and design choices are in [docs/labs.md](docs/labs.md). Beyond the
-labs: [MCP](docs/mcp.md), [orchestration](docs/orchestration.md), [evaluation](docs/evals.md) and the
-[service runtime](docs/runtime.md).
+labs: [voice](docs/voice.md), [visual work instructions](docs/visual.md), [evaluation](docs/evals.md),
+[MCP](docs/mcp.md), [orchestration](docs/orchestration.md) and the [service runtime](docs/runtime.md).
 
 ## Design principles
 
@@ -213,10 +213,10 @@ labs: [MCP](docs/mcp.md), [orchestration](docs/orchestration.md), [evaluation](d
 2. **The model proposes, code disposes.** Plans go through simulators, values through validators,
    actions through narrow APIs. Verifiers are code.
 3. **Feedback is a contract.** Verifiers name what is wrong ("no evidence for cooling-loop",
-   "value from a superseded edition") and agents iterate on it.
+   "that value comes from a superseded revision") and agents iterate on it.
 4. **Context is a budget.** Search before reading, grouped repeats instead of raw logs, bounded
    tool output that says how to narrow the query, token counting before submitting, and compaction
-   that rewrites history as observations instead of editing it.
+   that replaces the history with observations instead of editing turns in place.
 5. **Tools are an API for a reader without documentation.** Narrow, typed (pydantic), validated;
    errors come back as data with a hint, and a bug in a tool never ends the run.
 6. **Policy lives in code, not in the prompt.** Forbidden paths, approval tokens, valid codes and read-only
@@ -260,12 +260,17 @@ package on top of it. Details and trade-offs: [docs/architecture.md](docs/archit
 - **Agent results come from one dated run with one model and two seeds.** The tests drive the
   agents with scripted models, which proves the wiring (schemas, validation, verdicts, budgets,
   cost accounting); the table above is what one real model did on one day.
-- **The later live checks are single runs too**, on one seed or a few dozen items. Each page says
+- **The later live checks are just as small**: one seed or a few dozen items each. Each page says
   what happened and what it cost, including what failed and what was changed after it; none of it
   is an average.
+- **Three labs gave hints that a review found later.** The line-incident verifier listed missing
+  systems in causal order, so the first one named was the cause; a shift-briefing schema example
+  was the answer on some seeds; and the parts-graph verdict listed the seed's traps. All three are
+  gone. The live results above for those labs were measured while the hints were there.
 - **Fine-tuning ran into the provider, not the code.** OpenAI refused the training job (it is
-  winding fine-tuning down), so the comparison uses a model trained locally on the same examples;
-  the runner is ready for any service that still trains ([evals](docs/evals.md#fine-tuning-compared-with-prompting)).
+  winding fine-tuning down), so the comparison uses a nearest-ticket classifier built from the same
+  54 examples; the runner is ready for any service that still trains
+  ([evals](docs/evals.md#fine-tuning-compared-with-prompting)).
 - **The environments are small and synthetic on purpose.** Each trap is there so a failure mode is
   visible and checkable. Production data is messier; the verifiers here are kinder than reality.
 - **Token budgets inside environments use one deterministic estimate** so verifier, tools and

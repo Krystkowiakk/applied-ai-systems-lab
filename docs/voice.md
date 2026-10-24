@@ -63,8 +63,8 @@ after speech-to-text run offline and in the tests.
 ## Speech that is paid for once and said once
 
 [`delivery.py`](../src/aisyslab/voice/delivery.py): `SpeechCache` keeps audio under a key of the
-synthesizer, the voice, the style instructions and the text. The same sentence in the same voice is
-synthesized once, also across restarts; a changed voice or instruction is a new key, never a stale
+synthesiser, the voice, the style instructions and the text. The same sentence in the same voice is
+synthesised once, also across restarts; a changed voice or instruction is a new key, never a stale
 hit. `DeliveryJournal` marks each utterance `delivering` before it plays and `delivered` after. A
 spoken briefing is a job, and jobs are retried after a crash, so delivery would be at least once
 unless something stops it: on a retry, delivered sentences are skipped, and a sentence that was
@@ -83,7 +83,7 @@ the model again. A stream that breaks mid-answer never speaks its unfinished sen
 then has no finished answer to resume and asks the model again, so what was heard may come once
 more in other words.
 
-Two live runs, one each, so these are what happened, not averages:
+Two live runs, one before the fix and one after; single measurements, not averages:
 
 - The first: transcription 1.06 s, first sentence 1.72 s, first sound 4.67 s, over budget because
   the first sentence had 25 words and its speech took about two seconds to synthesise. Asking again
