@@ -49,13 +49,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     trace = sub.add_parser("trace", help="Print a JSONL trace as a timeline.")
     trace.add_argument("path", type=Path)
 
-    ev = sub.add_parser("eval", help="Evaluate the ticket-triage prompt: score, optimise, calibrate the judge.")
-    ev.add_argument("what", choices=["triage", "optimize", "judge"])
+    ev = sub.add_parser(
+        "eval", help="Evaluate ticket triage: score, optimise, judge, batch, interview the owner, fine-tune."
+    )
+    ev.add_argument("what", choices=["triage", "optimize", "judge", "batch", "interview", "tune"])
     ev.add_argument("--seed", type=int, default=0, help="Dataset seed.")
     ev.add_argument("--models", default=None, help="Comma-separated model ids to compare (with --provider).")
     ev.add_argument("--optimizer-model", default=None, help="Stronger model that rewrites the prompt.")
     ev.add_argument("--judge", action="store_true", help="Add the model judge to the graders.")
     ev.add_argument("--rounds", type=int, default=5)
+    ev.add_argument("--split", default="dev,holdout", help="Splits for batch and interview.")
+    ev.add_argument("--batch-size", type=int, default=12)
+    ev.add_argument("--questions", type=int, default=6, help="Interview length.")
+    ev.add_argument("--base-model", default="gpt-4.1-nano-2025-04-14", help="The model to fine-tune.")
+    ev.add_argument(
+        "--tuning",
+        choices=["openai", "local"],
+        default=None,
+        help="Train with OpenAI's fine-tuning, or locally on the same examples (default: openai with a provider).",
+    )
+    ev.add_argument("--epochs", type=int, default=3)
+    ev.add_argument("--wait", type=float, default=1800.0, help="Seconds to wait for a tuning job; a rerun resumes it.")
     ev.add_argument("--out", type=Path, default=Path("runs/evals"))
     ev.add_argument("--provider", choices=PROVIDERS, default=None, help="Without it, offline stand-ins are used.")
     ev.add_argument("--model", default=None)
@@ -114,7 +128,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "eval":
         from .evals.cli import run as run_eval_command
 
-        return run_eval_command(args)
+        try:
+            return run_eval_command(args)
+        except ModelError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
     if args.command == "tenant":
         return _tenant(args)
     if args.command == "search":

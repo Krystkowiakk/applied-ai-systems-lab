@@ -4,8 +4,8 @@ Every technique I use to build AI systems and my own tools, as of October 2026, 
 that shows it. Each example comes from one of three settings: plant operations, industrial planning
 and software building (see [the README](../README.md#the-examples)).
 
-**Status.** *Built* means it runs today, with tests. *Planned* means the example is designed and
-the technique is listed here so the map is complete; it is built next.
+**Status.** Every technique below is *built*: it runs today and has tests. Where a technique was
+also run against a live model, the linked page says what happened, including what failed.
 
 ## Model access and the agent loop
 
@@ -23,7 +23,7 @@ the technique is listed here so the map is complete; it is built next.
 | Model calls made inside tools (vision) are traced and costed | `RunContext.side_call` in [`core/lab.py`](../src/aisyslab/core/lab.py) | built |
 | Mixed models: the models under test, a stronger optimiser, a separately chosen judge | ticket triage (`aisyslab eval`) | built |
 | Local models through OpenAI-compatible servers (LM Studio, Ollama) | `--provider local` | built |
-| Many items classified in one request under a provider-enforced JSON schema, compared with one request per item | ticket triage | planned |
+| Many items classified in one request under a provider-enforced JSON schema, compared with one request per item | [evals](evals.md#many-tickets-in-one-request-under-a-schema), [`evals/batch.py`](../src/aisyslab/evals/batch.py) | built |
 | Responses cached for repeated identical inputs (duplicate tickets, repeated notes), never across tenants | [maintenance request service](runtime.md#one-gateway-for-every-model-call) | built |
 | One gateway for every model call: routes, fallback across providers, circuit breaker, call log | [maintenance request service](runtime.md#one-gateway-for-every-model-call), [`runtime/gateway.py`](../src/aisyslab/runtime/gateway.py) | built |
 
@@ -124,9 +124,10 @@ the technique is listed here so the map is complete; it is built next.
 | Models compared side by side before a migration; regressions listed item by item | [evals](evals.md) | built |
 | Error analysis: every item's output saved and read before a score is trusted | [evals](evals.md#a-live-run-what-the-numbers-hid) | built |
 | Prompt optimisation checked on a holdout; prompts versioned by hash | [evals](evals.md) | built |
-| An agent's instructions drafted by a meta-prompt from an interview with the process owner | ticket triage | planned |
+| An agent's instructions drafted by a meta-prompt from an interview with the process owner | [evals](evals.md#a-prompt-drafted-from-an-interview-with-the-process-owner), [`evals/interview.py`](../src/aisyslab/evals/interview.py) | built |
 | Classic ML instead of a model where the answer is in labelled numbers | [`quality-gate`](labs.md#quality-gate) | built |
-| Fine-tuning compared with prompting on the same holdout, with cost per thousand items | fine-tuned triage | planned |
+| Fine-tuning compared with prompting on the same holdout, with cost per thousand items; training data validated before paying, the job journaled | [evals](evals.md#fine-tuning-compared-with-prompting), [`evals/finetune.py`](../src/aisyslab/evals/finetune.py) | built |
+| Dataset hygiene: every item unique, nothing from the holdout in any training file | [evals](evals.md#the-dataset) | built |
 
 ## Safety
 

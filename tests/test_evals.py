@@ -35,6 +35,7 @@ def test_dataset_is_seeded_split_and_fingerprinted() -> None:
     assert tickets == generate_tickets(0) and tickets != generate_tickets(1)
     counts = {s: sum(t.split == s for t in tickets) for s in ("train", "dev", "holdout")}
     assert counts == {"train": 54, "dev": 18, "holdout": 18}
+    assert len({t.text for t in tickets}) == len(tickets)  # no ticket twice, so none crosses splits
     unseen = {w for words in HOLDOUT_SYMPTOMS.values() for w in words}
     assert not any(w in t.text for t in tickets if t.split != "holdout" for w in unseen)
     assert fingerprint(tickets) == fingerprint(generate_tickets(0)) != fingerprint(tickets[1:])

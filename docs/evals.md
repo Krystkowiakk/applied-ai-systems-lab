@@ -16,6 +16,12 @@ urgent cases. Every fifth ticket goes to `dev`, every fifth to `holdout`, the re
 The holdout also gets symptom wordings that appear nowhere else, so a prompt that memorised the
 training phrases is caught.
 
+Every ticket's text is unique. The first version of the generator did not check: 19 of the 90
+tickets repeated another word for word, two of them in the holdout, so two "unseen" tickets were
+in the training split too. The fine-tuning step found it, because its validation refuses to upload
+any training file that contains a holdout ticket (see below). The generator now draws again on a
+repeat, and a test checks it.
+
 A score is tied to its dataset by a content hash (`fingerprint`), to the prompt by a short hash,
 and to the model by name. `compare` refuses to compare runs on different datasets.
 
@@ -62,8 +68,8 @@ The offline run (seed 0) shows why the holdout exists:
 | Split | Starting prompt | Best prompt |
 |---|---|---|
 | train | 0.17 | 1.00 |
-| dev | 0.17 | 1.00 |
-| holdout | 0.17 | 0.78 |
+| dev | 0.17 | 0.94 |
+| holdout | 0.17 | 0.89 |
 
 The training score went up by construction. Only the holdout, with wordings the loop never saw,
 says how much of the gain is real.
@@ -84,7 +90,8 @@ aisyslab bench plant-database --solver agent --provider openai --promptless
 
 ## A live run: what the numbers hid
 
-Run on 23 October 2026 with `gpt-5-nano` and `gpt-5-mini` at low effort, for $0.08 in total:
+Run on 23 October 2026 with `gpt-5-nano` and `gpt-5-mini` at low effort, for $0.08 in total, on
+the first version of the dataset (with the repeated tickets described above):
 
 | Model | code | priority |
 |---|---|---|
@@ -106,6 +113,100 @@ not to prove a judge reliable.
 
 The optimiser had nothing to do: `gpt-5-nano` started at 1.00 on the training split. The loop's
 job is the opposite case, a weak model or a narrow prompt, which the offline stand-ins show.
+
+## Many tickets in one request, under a schema
+
+`aisyslab eval batch` ([`batch.py`](../src/aisyslab/evals/batch.py)) sends twelve tickets per
+request instead of one. The provider's structured-output mode enforces a JSON schema built for each
+batch: every item has an id from that batch, a known code, a priority from 1 to 3 and a reason. What
+a schema cannot promise, code checks: that every ticket came back exactly once. A ticket left out
+is asked for again on its own; repeats and ids from elsewhere are dropped and counted.
+
+On 24 October 2026, `gpt-5-mini` at low effort, 36 tickets from dev and holdout:
+
+| | Requests | Input tokens | Output tokens | Cost | code | priority |
+|---|---|---|---|---|---|---|
+| One ticket per request | 36 | 7,299 | 3,464 | $0.0088 | 0.97 | 1.00 |
+| Twelve per request, schema enforced | 3 | 2,292 | 2,990 | $0.0066 | 1.00 | 1.00 |
+
+The system prompt is sent once per batch, so input fell to a third; reasoning still costs per
+ticket, so the whole run was a quarter cheaper, not three times. No ticket was left out. The one
+difference was in the batch's favour ("oil level falling in the tank. no oil visible": the single
+request read the distractor and said seal, the batch said hydraulic leak), which on 36 tickets says
+the batch did no harm, not that it helps. The risk to watch on harder data is a ticket coloured by
+its neighbours, which is why the comparison is item by item.
+
+## A prompt drafted from an interview with the process owner
+
+`aisyslab eval interview` ([`interview.py`](../src/aisyslab/evals/interview.py)) gets the planner's
+knowledge out in two steps. An interviewer model asks one question at a time, at most six, the most
+useful first. A model plays the planner, answering only from notes the interviewer never sees. A
+drafter turns the transcript into guidance, and code assembles the prompt: the answer format and
+the codes are fixed and never rewritten. The drafted prompt then runs on the same splits as the
+starting one.
+
+On 24 October 2026 (`gpt-5-mini` at low effort in every role), the interviewer asked how operators
+describe each fault, how to tell a seal leak from a hydraulic one without the fluid's name, which
+code wins when a motor trip and a lost signal come together, and about shorthand; the planner said
+which of those its notes did not cover. The drafted prompt fixed the one dev ticket the starting
+prompt missed (the same "oil level falling in the tank"), broke nothing, and left the holdout at
+1.00, where it already was:
+
+| Split | Starting prompt | Drafted prompt |
+|---|---|---|
+| dev | 0.94 | 1.00 |
+| holdout | 1.00 | 1.00 |
+
+Two costs came with it. The prompt is three times longer, about 380 more input tokens per ticket,
+paid on every ticket from now on. And the planner, although told to answer only from its notes,
+added example phrases for priorities 2 and 3 that no note contains; some reached the guidance. A
+person interviewed the same way would answer from habit as much as from policy, so the transcript
+is worth reading before the prompt ships, and the evaluation is what decides.
+
+## Fine-tuning compared with prompting
+
+`aisyslab eval tune` ([`finetune.py`](../src/aisyslab/evals/finetune.py)) trains instead of
+prompting and compares the two on the same holdout, with the cost per thousand tickets:
+
+- **Prepare.** The train split becomes chat examples: a one-line instruction, the ticket, the answer
+  as JSON. The knowledge is meant to go into the weights, so the instruction stays short. The dev
+  split is the validation file; the holdout is never uploaded.
+- **Validate before paying.** Every answer parses, the codes are balanced (nine each), no holdout
+  ticket is in either file, and the tokens are counted: 4,663 per epoch, about 14,000 for three
+  epochs, two cents on `gpt-4.1-nano` at $1.50 per million. This check is the one that found the
+  repeated tickets.
+- **Run.** Upload, create, wait with a growing interval. Each step is journaled before the next, under
+  a key of the data, the base model and the epochs: a rerun reuses the uploaded files, waits for the
+  same job instead of paying for a second, and does not ask again after a refusal.
+- **Compare** on the holdout, with inference per thousand tickets and training as a one-off cost.
+
+On 24 October 2026 the job was refused: "OpenAI is winding down the fine-tuning platform and your
+organization is no longer able to create new fine-tuning training jobs" (HTTP 403). Since 7 May 2026
+organisations that never fine-tuned cannot start; from 6 January 2027 nobody can; tuned models keep
+serving until their base model is retired. The two files had been uploaded before the refusal, which
+is why the runner now journals uploads first: what a failed run leaves behind is on record. And
+`gpt-4.1-nano`, the base model, no longer answered prompts at all (404, retired). A technique that
+rests on one provider's service can disappear under a running system. The data preparation, the
+validation and the journal do not depend on the provider, and the runner sits behind an interface
+(`TuningBackend`) so that another service that trains can be plugged in.
+
+What could still be compared on the 18 holdout tickets, with `--tuning local`:
+
+| Model | Learned from | Holdout code | Holdout priority | Inference per 1,000 tickets |
+|---|---|---|---|---|
+| Nearest ticket | the 54 training examples, no language model | 0.78 | 1.00 | about $0 |
+| `gpt-5-mini`, low effort | the prompt | 0.94 | 1.00 | $0.28 |
+| `gpt-5-nano`, low effort | the prompt | 1.00 | 1.00 | $0.08 |
+
+The trained model matched on the wrong words. Of its four misses, one was a wording it had never
+seen ("breaker for the motor keeps tripping"); the other three were pulled by the asset ("air
+compressor" towards pneumatic), by a distractor sentence or by the urgency phrase: what a model
+learns from 54 examples is whatever separates those 54, wanted or not. The prompted models knew what
+the words mean. `gpt-5-mini` scored 0.94 here and 1.00 on the same tickets in the interview run an
+hour earlier, one ticket apart: eighteen tickets measure a difference of one ticket, not a ranking.
+On this data the cheapest right answer is a small model with a good prompt. Training earns its
+place where prompting cannot reach the accuracy, or where the volume makes eight cents per thousand
+matter, measured on a holdout like this one.
 
 ## Offline stand-ins
 

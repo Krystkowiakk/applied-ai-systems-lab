@@ -97,24 +97,32 @@ class Ticket:
 
 
 def generate_tickets(seed: int = 0, n: int = 90) -> list[Ticket]:
-    """A seeded dataset: varied wording, distractors that name the wrong component, urgent cases."""
+    """A seeded dataset: varied wording, distractors that name the wrong component, urgent cases.
+
+    Every ticket's text is unique: a ticket drawn twice is drawn again. A repeat across splits
+    would put a holdout ticket into training, word for word, and inflate the holdout score."""
     r = random.Random(seed)
     codes = list(CODES)
     tickets: list[Ticket] = []
+    seen: set[str] = set()
     for i in range(n):
         code = codes[i % len(codes)]
-        asset = r.choice(ASSETS)
         split = "holdout" if i % 5 == 4 else ("dev" if i % 5 == 3 else "train")
         pool = SYMPTOMS[code] + (HOLDOUT_SYMPTOMS[code] if split == "holdout" else [])
-        symptom = r.choice(pool)
-        parts = [f"{asset}: {symptom}"]
-        if r.random() < 0.35:
-            parts.append(r.choice(DISTRACTORS))  # names another component: a trap for keyword matching
-        urgent = r.random() < 0.3
-        if urgent:
-            parts.append(r.choice(URGENT))
-        r.shuffle(parts)
-        tickets.append(Ticket(f"T-{seed}-{i:03d}", ". ".join(parts) + ".", code, 1 if urgent else 2, split))
+        while True:
+            asset = r.choice(ASSETS)
+            parts = [f"{asset}: {r.choice(pool)}"]
+            if r.random() < 0.35:
+                parts.append(r.choice(DISTRACTORS))  # names another component: a trap for keyword matching
+            urgent = r.random() < 0.3
+            if urgent:
+                parts.append(r.choice(URGENT))
+            r.shuffle(parts)
+            text = ". ".join(parts) + "."
+            if text not in seen:
+                break
+        seen.add(text)
+        tickets.append(Ticket(f"T-{seed}-{i:03d}", text, code, 1 if urgent else 2, split))
     return tickets
 
 

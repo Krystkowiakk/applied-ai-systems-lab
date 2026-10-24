@@ -41,7 +41,7 @@ code and by an agent. On real work the useful question is rarely "can a model do
 | [`production-schedule`](docs/labs.md#production-schedule) | Tomorrow's orders on three presses, with the planner's notes | code mode: the model writes a program that plans, run in a sandbox |
 | [`part-research`](docs/labs.md#part-research) | A component is discontinued: what replaces it, from whom, how fast? | web search, a polite crawler, a deep research loop, a cited report |
 | [`parts-graph`](docs/labs.md#parts-graph) | A supplier delays a part: which lines and orders does it hold up, and which can an alternate save? | graph RAG, extraction validated by a parser, facts with dates |
-| Fine-tuned triage *(planned)* | The triage model, trained instead of prompted | fine-tuning compared with prompting |
+| [Triage, trained or batched](docs/evals.md#fine-tuning-compared-with-prompting) | The triage model fine-tuned, batched under a schema, or prompted from an interview with the planner | fine-tuning compared with prompting, batches under a provider-enforced schema, a meta-prompt from an interview |
 
 **Software building**
 
@@ -52,8 +52,7 @@ code and by an agent. On real work the useful question is rarely "can a model do
 | [Agent toolkit](docs/architecture.md) | The loop under every example | typed tools, budgets, retries, providers, traces |
 | [Maintenance request service](docs/runtime.md) | The team's requests as durable jobs, with a web UI | a model gateway, a durable runtime, streaming, tenants, cron |
 
-Every technique, with links into the code: [docs/techniques.md](docs/techniques.md). Planned
-examples are designed and listed there so the map is complete; they are built next.
+Every technique, with links into the code: [docs/techniques.md](docs/techniques.md).
 
 ## What the baselines show
 
@@ -147,7 +146,7 @@ aisyslab tenant demo              # a token for the service (shown once)
 aisyslab serve --demo             # the service and its web UI on :8000, without a model
 aisyslab voice notes              # the voice-note pipelines on recorded transcripts
 aisyslab card HP-07               # a work instruction card, drawn in code (not released: unchecked)
-pytest                            # 321 offline tests
+pytest                            # 328 offline tests
 ```
 
 With a model (keys are read from the environment, never from files in the repo):
@@ -168,6 +167,9 @@ aisyslab run shift-briefing --solver agent --provider anthropic                 
 aisyslab run plant-database --solver agent --provider anthropic --via-mcp --discover      # tools through MCP, found by search
 aisyslab mcp plant-database --seed 4                                                      # serve a lab to an MCP client
 aisyslab eval triage --provider openai --models gpt-5-mini,gpt-5 --judge                  # compare models on one eval set
+aisyslab eval batch --provider openai --model gpt-5-mini --effort low                     # twelve tickets per request, schema enforced
+aisyslab eval interview --provider openai --model gpt-5-mini --effort low                 # interview the planner, draft the prompt, measure it
+aisyslab eval tune --provider openai                                                      # fine-tune, resume, compare with prompting
 aisyslab search "ISO 4414 pneumatic safety"                                               # the research SearchAPI on the real web
 aisyslab voice notes --speech openai --provider openai --model gpt-5-mini                 # speak, transcribe and file ten voice notes
 aisyslab voice ask --speech openai --provider openai --model gpt-5-mini                   # ask by voice, hear the answer, with stage timings
@@ -253,8 +255,12 @@ separate packages on top of it. Details and trade-offs: [docs/architecture.md](d
 - **Agent results come from one dated run with one model and two seeds.** The tests drive the
   agents with scripted models, which proves the wiring (schemas, validation, verdicts, budgets,
   cost accounting); the table above is what one real model did on one day.
-- **Planned examples are designed, not built.** The technique map marks each one; nothing planned
-  is presented as working.
+- **The later live checks are single runs too**, on one seed or a few dozen items. Each page says
+  what happened and what it cost, including what failed and what was changed after it; none of it
+  is an average.
+- **Fine-tuning ran into the provider, not the code.** OpenAI refused the training job (it is
+  winding fine-tuning down), so the comparison uses a model trained locally on the same examples;
+  the runner is ready for any service that still trains ([evals](docs/evals.md#fine-tuning-compared-with-prompting)).
 - **The environments are small and synthetic on purpose.** Each trap is there so a failure mode is
   visible and checkable. Production data is messier; the verifiers here are kinder than reality.
 - **Token budgets inside environments use one deterministic estimate** so verifier, tools and
