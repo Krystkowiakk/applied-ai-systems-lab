@@ -128,6 +128,5 @@ class Lab:
     baseline: Callable[[Any, RunContext], None]
     agent: Callable[[Any, ChatModel, RunContext], AgentRun]
     agent_config: AgentConfig = field(default_factory=AgentConfig)
-    origin: str = ""
     # The agent's prompt, task and tool factory, so the lab's tools can also be served over MCP.
     spec: AgentSpec | None = None

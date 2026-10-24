@@ -195,7 +195,12 @@ def build(seed: int) -> Week:
             str(high),
             stale=str(low),
         ),
-        Question("temporary-fixes", "Which machines still have a temporary fix in place?", "tags", still_temporary),
+        Question(
+            "temporary-fixes",
+            "Which machines still run on a temporary repair? A sensor bypass does not count.",
+            "tags",
+            still_temporary,
+        ),
         Question("c3-gearbox", "Is there a confirmed gearbox fault on conveyor C3?", "yesno", "no"),
         Question("scrap-rate", "What was the scrap rate on line 3 on Wednesday?", "none", "not recorded"),
         Question("pump2-part", "Which part number is coolant pump 2 waiting for?", "tag", part),

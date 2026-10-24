@@ -84,5 +84,5 @@ class PartsGraphEnv(LabEnv):
         correct = sum(v == "ok" for v in checks.values())
         accepted = correct == len(checks)
         feedback = "All correct." if accepted else "; ".join(f"{k}: {v}" for k, v in checks.items() if v != "ok")
-        details = {"score": round(correct / len(checks), 3), "checks": checks, "traps": list(self.world.traps)}
+        details = {"score": round(correct / len(checks), 3), "checks": checks}
         return self._record(Verdict(accepted, "OK" if accepted else "PARTIAL", feedback, details))

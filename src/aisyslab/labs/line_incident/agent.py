@@ -13,7 +13,7 @@ from ...core.tokens import estimate_tokens
 from ...core.tools import NoArgs, Tool, Toolbox
 from .env import LINE_LIMIT, TOKEN_LIMIT, LineIncidentEnv
 
-SYSTEM = f"""You are the on-call assistant for a manufacturing plant. Line 3 stopped overnight.
+SYSTEM = f"""You are the on-call assistant for a manufacturing plant. Line 3 stopped on 14 March.
 You cannot read the whole log; query it with the tools.
 
 Deliver a timeline the on-call engineer can diagnose from:

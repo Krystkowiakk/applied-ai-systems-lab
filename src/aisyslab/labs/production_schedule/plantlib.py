@@ -44,15 +44,22 @@ def list_schedule(
 
     ``machine_for`` pins an order to a machine, ``after`` makes an order wait for another one to
     finish, ``cutoff`` gives the minute by which a machine's jobs must end. An order that fits
-    nowhere is left out; ``evaluate`` reports it.
+    nowhere is left out; ``evaluate`` reports it. An order whose predecessor comes later in the
+    sequence is an error: it cannot wait for something not yet placed. One whose predecessor
+    was left out is left out too.
     """
     orders = {o["id"]: o for o in data["orders"]}
     free = dict.fromkeys(data["machines"], 0)
     last: dict[str, str | None] = dict.fromkeys(data["machines"], None)
     ends: dict[str, int] = {}
     plan = []
-    for oid in sequence:
+    for position, oid in enumerate(sequence):
         o = orders[oid]
+        first = (after or {}).get(oid)
+        if first is not None and first not in ends:
+            if first in sequence[position + 1 :]:
+                raise ValueError(f"{oid} has to wait for {first}: put {first} earlier in the sequence.")
+            continue  # its predecessor was left out, so it cannot start either
         if machine_for and oid in machine_for:
             candidates = [machine_for[oid]]
         else:

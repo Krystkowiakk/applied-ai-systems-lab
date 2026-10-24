@@ -106,8 +106,12 @@ def build(seed: int) -> tuple[list[Claim], dict[str, Batch]]:
     claims: list[Claim] = []
     batches: dict[str, Batch] = {}
     iban_on = r.choice([p for p in plans if p in ("investigate", "reject")])
+    spare = random.Random(seed * 53 + 12)  # redraws a repeated batch ID without moving the main stream
     for index, (plan, (company, contact, email, phone), part) in enumerate(zip(plans, customers, parts, strict=True)):
-        batch_id = f"B-2026-{r.randint(1000, 9999)}" if plan != "reject" else f"B-2025-{r.randint(1000, 9999)}"
+        year = "2026" if plan != "reject" else "2025"
+        batch_id = f"B-{year}-{r.randint(1000, 9999)}"
+        while batch_id in batches:  # two claims on one batch would overwrite each other's record
+            batch_id = f"B-{year}-{spare.randint(1000, 9999)}"
         defect = r.choice(sorted(DEFECTS)) if plan != "investigate" else r.choice(FUNCTIONAL)
         if plan == "reject":
             delivered = CLAIM_DATE - timedelta(days=r.randint(WARRANTY_DAYS + 20, WARRANTY_DAYS + 200))

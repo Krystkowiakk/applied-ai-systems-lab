@@ -378,8 +378,8 @@ def build(seed: int) -> World:
     notes.sort(key=lambda d: (d.date, d.id))
     question = (
         f"{supplier[part]} writes that {part} ({part_kind[part]}) will not ship before {long_date(arrival)}. "
-        "Which lines does that hold up today, which open orders due before then are at risk, and which of "
-        "them can still be built with an approved alternate part?"
+        "Which lines does that affect today? Of the open orders due before then, which are at risk, and which "
+        "can an approved alternate part still save?"
     )
     return World(tuple(tables + notes), question, part, arrival.isoformat(), answer, traps)
 

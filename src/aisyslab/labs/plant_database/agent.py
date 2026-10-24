@@ -36,7 +36,7 @@ class QueryArgs(BaseModel):
 
 
 class AnswerArgs(BaseModel):
-    work_order_ids: list[str] = Field(description="Work order IDs, for example ['WO-2101', 'WO-2140'].")
+    work_order_ids: list[str] = Field(description="Work order IDs, written as the database writes them.")
 
 
 def toolbox(env: PlantDatabaseEnv, model: ChatModel | None, ctx: RunContext) -> Toolbox:

@@ -303,12 +303,13 @@ class MaintenancePortalEnv(LabEnv):
         self._api("finish")
         problems: list[str] = []
         fix, close = self.orders[self.target_fix], self.orders[self.target_close]
+        # The records are described, never named: the feedback must not hand over the targets.
         if fix.failure_code != "MECH-BRG":
-            problems.append(f"{fix.id} still has failure code {fix.failure_code}")
+            problems.append(f"the order to re-code still has failure code {fix.failure_code}")
         if not any("bearing" in n.lower() for n in fix.notes):
-            problems.append(f"{fix.id} has no note explaining the change")
+            problems.append("the re-coded order has no note explaining the change")
         if close.status != "closed":
-            problems.append(f"{close.id} is not closed")
+            problems.append("the order to close is still open")
         changed = [
             o.id
             for o in self.orders.values()

@@ -1,6 +1,6 @@
 """The 06:00 operations briefing: three investigations, one report.
 
-The plant manager wants three answers before the morning meeting: where tonight's line-3
+The plant manager wants three answers before the morning meeting: where the line-3
 stoppage started, which corrective work orders cannot start for lack of parts, and which of
 tonight's batches are held at the quality gate. Each answer lives in its own system with its
 own data and its own checks (the line-incident, plant-database and quality-gate labs, built
@@ -34,7 +34,7 @@ class ShiftBriefingEnv(LabEnv):
         self.held = {b["batch_id"] for b in self.quality.tonight} - self.quality.expected
         self.instruction = (
             "Prepare the 06:00 operations briefing for the plant manager, with three answers. "
-            "root_cause: the system where tonight's line-3 stoppage started (the first system in the chain, "
+            "root_cause: the system where the line-3 stoppage started (the first system in the chain, "
             "not the first critical alarm). blocked_work_orders: the open corrective work orders on line 3 "
             "that cannot start because a required spare part is short. held_batches: tonight's batches that "
             "fail the quality gate or miss a measurement. Each answer has its own data: the line log, the "

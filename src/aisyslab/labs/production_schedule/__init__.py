@@ -7,7 +7,7 @@ LAB = Lab(
     id="production-schedule",
     title="Production schedule: code mode, in a sandbox",
     summary=(
-        "Fourteen orders on three presses with changeovers, a maintenance window and two notes from the planner "
+        "Sixteen orders on three presses with changeovers, a maintenance window and two notes from the planner "
         "in plain words. The agent writes a program that plans with a scheduling library; the program runs in a "
         "sandbox without network or keys; code judges feasibility and lateness."
     ),

@@ -32,7 +32,8 @@ FORMATS = {
 
 HELP = """Mail API
 search(query, page) -> newest first, 10 per page, metadata and a short snippet only.
-  Operators: from:<text>  subject:<word> or subject:"several words"  after:YYYY-MM-DD  before:YYYY-MM-DD
+  Operators: from:<text>  subject:<word> or subject:"several words"
+             after:YYYY-MM-DD (later days only)  before:YYYY-MM-DD (earlier days only)
   Any other word must appear in the subject or body (all words must match, case-insensitive).
 get_thread(thread_id) -> every message of the thread with full bodies, oldest first.
 wait_for_new_mail() -> waits briefly and reports how many messages arrived.

@@ -31,7 +31,7 @@ Call finish when the task is done."""
 
 
 class OrderArgs(BaseModel):
-    work_order_id: str = Field(description="For example WO-1042.")
+    work_order_id: str = Field(description="The work order ID as the portal lists it.")
 
 
 class UpdateArgs(BaseModel):

@@ -400,8 +400,6 @@ def _describe(lab: Lab) -> None:
     print(f"{lab.title}\n\n{lab.summary}\n\nTechniques:")
     for t in lab.techniques:
         print(f"  - {t}")
-    if lab.origin:
-        print(f"\nOrigin: {lab.origin}")
 
 
 def _print_report(r: RunReport) -> None:

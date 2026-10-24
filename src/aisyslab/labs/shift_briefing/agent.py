@@ -32,7 +32,7 @@ that specialist back with the feedback."""
 
 
 class BriefingArgs(BaseModel):
-    root_cause: str = Field(description="The system where the stoppage started, e.g. cooling-pump-2.")
+    root_cause: str = Field(description="The system where the stoppage started, named as the log names it.")
     blocked_work_orders: list[str] = Field(description="Work order IDs blocked by a missing part.")
     held_batches: list[str] = Field(description="IDs of tonight's batches held at the quality gate.")
 

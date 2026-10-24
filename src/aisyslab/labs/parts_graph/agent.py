@@ -68,7 +68,7 @@ class WalkArgs(BaseModel):
 class CorrectArgs(BaseModel):
     doc_id: str = Field(description="The document that states the facts.")
     add: list[str] = Field(
-        default_factory=list, description="Facts it states, e.g. 'MC-12 RUNS_ON L2 since 2026-10-01'."
+        default_factory=list, description="Facts it states, e.g. 'MC-99 RUNS_ON L9 since 2026-10-01'."
     )
     remove: list[str] = Field(default_factory=list, description="Facts stored from it that it does not state.")
 

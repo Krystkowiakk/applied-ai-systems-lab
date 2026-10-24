@@ -1,4 +1,4 @@
-"""A production line stopped overnight. One day of logs, one causal chain, lots of noise.
+"""A production line stopped on 14 March. One day of logs, one causal chain, lots of noise.
 
 The solver must hand the on-call engineer a short timeline that explains the stoppage. The
 reviewer checks four things: length (a token budget), format, that every line points to an
@@ -300,7 +300,7 @@ class LineIncidentEnv(LabEnv):
             if previous is not None and (day, clock) < previous:
                 problems.append(f"line {i}: not in chronological order")
             previous = (day, clock)
-        missing = [c for c in self.required if c not in covered]
+        missing = sorted(c for c in self.required if c not in covered)  # sorted: chain order would name the cause
         if missing:
             problems.append("the engineer still cannot explain the stoppage: no evidence for " + ", ".join(missing))
         accepted = not problems
