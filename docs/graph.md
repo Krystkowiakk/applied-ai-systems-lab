@@ -74,3 +74,7 @@ second run every note was extracted on the first call. The agent tried three tim
 delivery date as a fact (the graph has no relation for it, and the parser now says so in those
 words), then listed one order as both at risk and saved; the verifier said so, and the second
 submission was accepted, for about a cent and a half.
+
+A review then found that the verdict also listed the seed's traps, so that acceptance could have
+leaned on them. With the traps gone from the verdict, a third run (default effort) built the
+graph, walked it twice and was accepted at its first submission, again for about a cent and a half.

@@ -127,7 +127,7 @@ The modules without a lab were run live too, and their pages say what happened: 
 the real web, ten voice notes spoken and transcribed and a voice cascade timed stage by stage, two
 instruction cards (the first check let letter-like marks through), triage in batches and from an
 interview, and a fine-tuning job the provider refused. All the live runs on 24 October cost about
-$0.42. Produce your own results, with your key or a local model:
+$0.52. Produce your own results, with your key or a local model:
 
 ```bash
 aisyslab bench --solvers baseline,agent --provider openai --model gpt-5-mini --seeds 0-4
@@ -266,7 +266,11 @@ package on top of it. Details and trade-offs: [docs/architecture.md](docs/archit
 - **Three labs gave hints that a review found later.** The line-incident verifier listed missing
   systems in causal order, so the first one named was the cause; a shift-briefing schema example
   was the answer on some seeds; and the parts-graph verdict listed the seed's traps. All three are
-  gone. The live results above for those labs were measured while the hints were there.
+  gone. The traces show which live results they could have helped. No rejection in any run named
+  the cause, so the order gave nothing away; but the shift-briefing answer on seed 0 was the
+  example, and the accepted parts-graph run had seen the traps. Both were run again after the fix,
+  on 24 October, and both were accepted: the shift briefing at its second submission, as before
+  (74 model calls, $0.08), and parts-graph at its first (15 model calls, $0.016, default effort).
 - **Fine-tuning ran into the provider, not the code.** OpenAI refused the training job (it is
   winding fine-tuning down), so the comparison uses a nearest-ticket classifier built from the same
   54 examples; the runner is ready for any service that still trains
