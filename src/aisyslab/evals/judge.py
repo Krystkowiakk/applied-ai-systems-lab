@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -33,6 +34,7 @@ class LLMJudge:
         self.model = model
         self.rubric = rubric
         self.usage = Usage()
+        self._lock = threading.Lock()  # graded from several threads at once
 
     def grade(self, ticket: str, reason: str) -> tuple[bool, str]:
         turn = self.model.complete(
@@ -41,7 +43,8 @@ class LLMJudge:
             tools=[],
             max_output_tokens=120,
         )
-        self.usage = self.usage + turn.usage
+        with self._lock:
+            self.usage = self.usage + turn.usage
         first, _, rest = turn.text.strip().partition("\n")
         return first.strip().upper().startswith("PASS"), rest.strip()[:200]
 

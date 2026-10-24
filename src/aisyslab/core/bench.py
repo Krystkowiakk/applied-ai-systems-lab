@@ -26,12 +26,16 @@ class Row:
     output_tokens: float
     seconds: float
     statuses: dict[str, int]
+    cached_input_tokens: float = 0.0
 
-    def cost(self, price_in: float | None, price_out: float | None) -> float | None:
-        """Mean USD per run, given prices per million tokens."""
+    def cost(self, price_in: float | None, price_out: float | None, price_cached: float | None = None) -> float | None:
+        """Mean USD per run, given prices per million tokens. Cached input is priced at
+        ``price_cached`` when given, otherwise as ordinary input."""
         if price_in is None or price_out is None:
             return None
-        return (self.input_tokens * price_in + self.output_tokens * price_out) / 1_000_000
+        cached = self.cached_input_tokens if price_cached is not None else 0.0
+        fresh = self.input_tokens - cached
+        return (fresh * price_in + cached * (price_cached or 0.0) + self.output_tokens * price_out) / 1_000_000
 
 
 def summarize(reports: Iterable[RunReport]) -> list[Row]:
@@ -59,6 +63,7 @@ def summarize(reports: Iterable[RunReport]) -> list[Row]:
                 model_calls=mean(r.model_calls for r in group),
                 input_tokens=mean(r.input_tokens for r in group),
                 output_tokens=mean(r.output_tokens for r in group),
+                cached_input_tokens=mean(r.cached_input_tokens for r in group),
                 seconds=mean(r.seconds for r in group),
                 statuses=dict(statuses),
             )
@@ -66,7 +71,13 @@ def summarize(reports: Iterable[RunReport]) -> list[Row]:
     return rows
 
 
-def to_markdown(rows: Sequence[Row], *, price_in: float | None = None, price_out: float | None = None) -> str:
+def to_markdown(
+    rows: Sequence[Row],
+    *,
+    price_in: float | None = None,
+    price_out: float | None = None,
+    price_cached: float | None = None,
+) -> str:
     with_cost = price_in is not None and price_out is not None
     header = [
         "Lab",
@@ -101,7 +112,7 @@ def to_markdown(rows: Sequence[Row], *, price_in: float | None = None, price_out
             f"{row.seconds:.2f}",
         ]
         if with_cost:
-            cost = row.cost(price_in, price_out)
+            cost = row.cost(price_in, price_out, price_cached)
             cells.append(f"{cost:.4f}" if cost is not None else "-")
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)

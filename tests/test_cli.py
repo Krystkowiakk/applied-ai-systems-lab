@@ -53,3 +53,44 @@ def test_bench_writes_results(tmp_path: Path) -> None:
 def test_seed_specs() -> None:
     assert _seeds("0-3") == [0, 1, 2, 3]
     assert _seeds("2,5") == [2, 5]
+
+
+@pytest.mark.parametrize(
+    ("argv", "message"),
+    [
+        (["bench", "--labs", "nope"], "Unknown lab 'nope'"),
+        (["bench", "--labs", "inbox", "--seeds", "x"], "use a range such as 0-4"),
+        (["bench", "--labs", "inbox", "--solvers", "agnet"], "unknown solver agnet"),
+        (["trace", "no-such-trace.jsonl"], "no trace file"),
+    ],
+)
+def test_mistyped_arguments_end_in_a_message_not_a_traceback(
+    argv: list[str], message: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(argv) == 2
+    assert message in capsys.readouterr().err
+
+
+def test_bench_prices_cached_input_as_cached_when_asked() -> None:
+    from aisyslab.core.bench import Row
+
+    row = Row("lab", "agent", "m", 1, 1, 1.0, 1, 0, 0, 1, 1_000_000, 100_000, 1.0, {}, cached_input_tokens=800_000)
+    assert row.cost(1.0, 10.0) == pytest.approx(2.0)  # cached priced as ordinary input
+    assert row.cost(1.0, 10.0, 0.1) == pytest.approx(0.2 + 0.08 + 1.0)
+
+
+def test_one_failed_model_call_does_not_end_a_paid_evaluation() -> None:
+    from aisyslab.core.model import ModelError
+    from aisyslab.evals.runner import run_eval
+    from aisyslab.evals.triage import BASE_PROMPT, RuleFollowerModel, generate_tickets
+
+    class Flaky(RuleFollowerModel):
+        def complete(self, **kwargs: object):  # type: ignore[override]
+            if "seal" in kwargs["messages"][-1].content:  # type: ignore[index]
+                raise ModelError("503 after retries")
+            return super().complete(**kwargs)  # type: ignore[arg-type]
+
+    tickets = generate_tickets(0)[:12]
+    report = run_eval(Flaky(), BASE_PROMPT, tickets)
+    failed = [i for i in report.items if i.error]
+    assert len(report.items) == 12 and failed and all(not i.passed("schema") for i in failed)

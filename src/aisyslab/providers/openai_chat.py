@@ -17,8 +17,10 @@ from ..core.model import ModelError, TextSink
 from ..core.tokens import estimate_tokens
 
 # Reasoning models spend completion tokens on reasoning before the answer; a small limit can
-# leave nothing for the answer itself. Only generated tokens are billed, so a floor costs nothing.
+# leave nothing for the answer itself. For them a caller's smaller limit is raised to this floor
+# (only generated tokens are billed); other models keep the caller's limit.
 MIN_COMPLETION_TOKENS = 16000
+REASONING_PREFIXES = ("gpt-5", "o1", "o3", "o4")
 
 
 class OpenAIChatModel:
@@ -123,7 +125,9 @@ class OpenAIChatModel:
     def _payload(
         self, system: str, messages: Sequence[Message], tools: Sequence[ToolSpec], max_output_tokens: int
     ) -> dict[str, Any]:
-        limit = max_output_tokens if self.token_param == "max_tokens" else max(max_output_tokens, MIN_COMPLETION_TOKENS)
+        reasons = self.reasoning_effort is not None or self.model.startswith(REASONING_PREFIXES)
+        floor = reasons and self.token_param != "max_tokens"
+        limit = max(max_output_tokens, MIN_COMPLETION_TOKENS) if floor else max_output_tokens
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": [{"role": "system", "content": system}, *to_openai_messages(messages)],

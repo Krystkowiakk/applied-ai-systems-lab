@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 
 from ..core.messages import Usage
-from ..core.model import ChatModel
+from ..core.model import ChatModel, ModelError
 from .graders import DETERMINISTIC, Grade, Grader, parse
 from .triage import Ticket, classify
 
@@ -36,6 +36,7 @@ class ItemResult:
     expected: str
     output: str
     grades: list[Grade]
+    error: str = ""  # the model call failed: the item counts as failed, the run goes on
 
     def passed(self, grader: str) -> bool:
         return next((g.passed for g in self.grades if g.name == grader), False)
@@ -86,7 +87,10 @@ def run_eval(
     workers: int = 4,
 ) -> EvalReport:
     def one(ticket: Ticket) -> tuple[ItemResult, Usage]:
-        output, usage = classify(model, prompt, ticket)
+        try:
+            output, usage = classify(model, prompt, ticket)
+        except ModelError as exc:  # one failed call must not throw away a paid run
+            return ItemResult(ticket.id, ticket.code, "", [g(ticket, "") for g in graders], str(exc)), Usage()
         return ItemResult(ticket.id, ticket.code, output, [g(ticket, output) for g in graders]), usage
 
     with ThreadPoolExecutor(max_workers=workers) as pool:

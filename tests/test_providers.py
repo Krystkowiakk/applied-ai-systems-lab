@@ -177,7 +177,7 @@ def test_openai_stream_that_hits_the_length_limit_is_a_truncated_turn() -> None:
             raise LengthLimit(partial)  # what the SDK's stream helper does at the limit
 
     model = OpenAIChatModel.__new__(OpenAIChatModel)
-    model.model, model.reasoning_effort, model.temperature = "m", None, None
+    model.model, model.reasoning_effort, model.temperature = "gpt-5-mini", None, None
     model.token_param, model.stream_usage = "max_completion_tokens", True
     model._openai = NS(APIError=type("APIError", (Exception,), {}), LengthFinishReasonError=LengthLimit)
     sent: dict = {}
@@ -187,3 +187,6 @@ def test_openai_stream_that_hits_the_length_limit_is_a_truncated_turn() -> None:
     )
     assert turn.stop_reason == "max_tokens" and turn.text == "The blocked orders are"
     assert sent["max_completion_tokens"] == 16000  # reasoning needs room before the answer
+    model.model = "gpt-4.1-mini"  # a model that does not reason keeps the caller's limit
+    model.complete_stream(system="s", messages=[Message(role="user", content="hi")], tools=[], on_text=lambda _t: None)
+    assert sent["max_completion_tokens"] == 4096

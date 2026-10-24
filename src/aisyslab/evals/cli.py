@@ -45,11 +45,16 @@ def run(args: argparse.Namespace) -> int:
         ids = [m.strip() for m in (args.models or args.model or "").split(",") if m.strip()] or [None]
         models = [RuleFollowerModel()] if offline else [_model(args, m) for m in ids]
         graders = list(DETERMINISTIC)
+        reason_judge: LLMJudge | None = None
         if args.judge:
-            graders.append(judged_reason(LLMJudge(KeywordJudge() if offline else _model(args, args.model))))
+            reason_judge = LLMJudge(KeywordJudge() if offline else _model(args, args.model))
+            graders.append(judged_reason(reason_judge))
         reports = [run_eval(m, BASE_PROMPT, tickets, graders) for m in models]
         table = to_markdown(reports)
         print(table)
+        if reason_judge is not None:  # the judge's tokens are not in the table: it graded every model
+            used = reason_judge.usage
+            print(f"Judge: {used.input_tokens:,} tokens in, {used.output_tokens:,} out")
         (args.out / f"triage-{stamp}.md").write_text(table + "\n", encoding="utf-8")
         by_id = {t.id: t for t in tickets}
         details = [
@@ -84,9 +89,9 @@ def run(args: argparse.Namespace) -> int:
     return 0
 
 
-def _effort(args: argparse.Namespace, model_id: str) -> str | None:
-    """Reasoning effort only for models that reason; the others reject the parameter."""
-    return args.effort if model_id.startswith(("gpt-5", "o")) else None
+def _effort(args: argparse.Namespace, model_id: str | None) -> str | None:
+    """Reasoning effort, except for models known not to reason, which reject the parameter."""
+    return None if model_id and model_id.startswith(("gpt-4", "gpt-3")) else args.effort
 
 
 def _more(args: argparse.Namespace, tickets: list[Ticket], offline: bool, stamp: str) -> int:
@@ -105,8 +110,12 @@ def _more(args: argparse.Namespace, tickets: list[Ticket], offline: bool, stamp:
     from .interview import NotesOwner, RuleDrafter, ScriptedInterviewer, draft_prompt, interview
 
     chosen = [t for t in tickets if t.split in args.split.split(",")]
-    model_id = args.model or "gpt-5-mini"
-    executor = RuleFollowerModel() if offline else make_model(args.provider, model_id, effort=_effort(args, model_id))
+    model_id = args.model  # None: the provider's default model
+    executor = (
+        RuleFollowerModel()
+        if offline
+        else make_model(args.provider, model_id, base_url=args.base_url, effort=_effort(args, model_id))
+    )
     saved: dict[str, object] = {}
 
     if args.what == "batch":
@@ -115,7 +124,9 @@ def _more(args: argparse.Namespace, tickets: list[Ticket], offline: bool, stamp:
             return 2
         single = run_eval(executor, BASE_PROMPT, chosen)
         batch_model = (
-            RuleFollowerBatch(drop=1) if offline else OpenAIJsonModel(model_id, effort=_effort(args, model_id))
+            RuleFollowerBatch(drop=1)
+            if offline
+            else OpenAIJsonModel(model_id or "gpt-5-mini", effort=_effort(args, model_id))
         )
         batched = classify_batches(batch_model, BASE_PROMPT, chosen, size=args.batch_size)
         print(to_markdown([single, batched.report]))

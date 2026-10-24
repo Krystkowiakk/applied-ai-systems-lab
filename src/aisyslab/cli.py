@@ -44,6 +44,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     bench.add_argument("--out", type=Path, default=Path("runs"), help="Where to write the JSON and Markdown results.")
     bench.add_argument("--price-in", type=float, default=None, help="USD per million input tokens, for a cost column.")
     bench.add_argument("--price-out", type=float, default=None, help="USD per million output tokens.")
+    bench.add_argument(
+        "--price-cached",
+        type=float,
+        default=None,
+        help="USD per million cached input tokens; without it they are priced as ordinary input.",
+    )
     _shared(bench)
 
     trace = sub.add_parser("trace", help="Print a JSONL trace as a timeline.")
@@ -121,6 +127,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         _describe(get_lab(args.lab))
         return 0
     if args.command == "trace":
+        if not args.path.is_file():
+            print(f"error: no trace file at {args.path}", file=sys.stderr)
+            return 2
         print(render_trace(read_trace(args.path)))
         return 0
     if args.command == "mcp":
@@ -168,8 +177,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "run":
             return _run(args)
         return _bench(args)
-    except ModelError as exc:
+    except (ModelError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except KeyError as exc:  # an unknown lab id; the message lists the known ones
+        print(f"error: {exc.args[0] if exc.args else exc}", file=sys.stderr)
         return 2
 
 
@@ -177,7 +189,10 @@ def _shared(p: argparse.ArgumentParser) -> None:
     p.add_argument("--provider", choices=PROVIDERS, default=None, help="Model provider for the agent solver.")
     p.add_argument("--model", default=None, help="Model id; each provider has a default.")
     p.add_argument(
-        "--base-url", default=None, help="OpenAI-compatible server, e.g. http://localhost:11434/v1 for Ollama."
+        "--base-url",
+        default=None,
+        help="OpenAI-compatible server, e.g. http://localhost:11434/v1 for Ollama. With --provider openai, "
+        "OPENAI_API_KEY is sent to it; use --provider local for a server that needs no key.",
     )
     p.add_argument("--effort", default=None, help="Reasoning effort passed to the provider (e.g. low, medium, high).")
     p.add_argument("--flaky", type=float, default=0.0, help="Probability of a transient 503/429 on every API call.")
@@ -249,7 +264,7 @@ def _serve(args: argparse.Namespace) -> int:
         return 2
     models = [primary]
     if args.fallback_provider:
-        models.append(make_model(args.fallback_provider, args.fallback_model, effort=args.effort))
+        models.append(make_model(args.fallback_provider, args.fallback_model))  # effort values differ per provider
     triage = primary
     if args.triage_model and args.provider:
         triage = make_model(args.provider, args.triage_model, base_url=args.base_url)
@@ -359,6 +374,9 @@ def _bench(args: argparse.Namespace) -> int:
     ids = list(LABS) if args.labs == "all" else [i.strip() for i in args.labs.split(",")]
     labs = [_lab(args, i) for i in ids]
     solvers = [s.strip() for s in args.solvers.split(",")]
+    unknown = [s for s in solvers if s not in ("baseline", "agent")]
+    if unknown:
+        raise ValueError(f"unknown solver {', '.join(unknown)}; use baseline, agent or both")
     model = _model(args, solvers)
     options = _options(args)
     reports: list[RunReport] = []
@@ -379,7 +397,9 @@ def _bench(args: argparse.Namespace) -> int:
                 print(
                     f"{mark}{lab.id:<20} {solver:<8} seed {seed:<3} {report.status:<14} {report.tool_calls:>3} tool calls  {report.input_tokens:>8,} tok in"
                 )
-    table = to_markdown(summarize(reports), price_in=args.price_in, price_out=args.price_out)
+    table = to_markdown(
+        summarize(reports), price_in=args.price_in, price_out=args.price_out, price_cached=args.price_cached
+    )
     print("\n" + table)
     args.out.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -390,10 +410,13 @@ def _bench(args: argparse.Namespace) -> int:
 
 
 def _seeds(spec: str) -> list[int]:
-    if "-" in spec:
-        lo, hi = spec.split("-", 1)
-        return list(range(int(lo), int(hi) + 1))
-    return [int(s) for s in spec.split(",") if s.strip()]
+    try:
+        if "-" in spec:
+            lo, hi = spec.split("-", 1)
+            return list(range(int(lo), int(hi) + 1))
+        return [int(s) for s in spec.split(",") if s.strip()]
+    except ValueError:
+        raise ValueError(f"seeds '{spec}': use a range such as 0-4 or a list such as 0,3,7") from None
 
 
 def _describe(lab: Lab) -> None:
