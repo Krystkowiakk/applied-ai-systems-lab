@@ -45,19 +45,23 @@ exactly like a run that does not exist.
 - **Claims expire.** A claim lasts `claim_ttl` seconds; a heartbeat thread extends it while a slow
   model call runs. When a worker dies, the claim runs out and the scheduler puts the run back in
   the queue. The next worker continues from the last written step.
-- **Fencing.** Every write a worker makes for a run checks that the worker still holds the claim.
-  A worker that froze, lost its claim and woke up again cannot overwrite the work of the worker
-  that took over.
+- **Fencing.** A claim is a lease: the worker's name plus a token drawn for that claim. Every
+  write a worker makes for a run presents its lease, so a worker that froze, lost its claim and
+  woke up again cannot overwrite the work of the worker that took over, even when another process
+  also has a worker of the same name.
 - **A journal of tool calls.** A call is journaled before it runs and its result after, together
   with the conversation item, in one transaction. A finished call is never run again. A call that
   started but has no result (the worker died in between) runs again, with its id as the
   idempotency key (`runtime.idempotency_key`), so a tool that changes an external system applies
-  it once.
+  it once. The model is told which calls have an unknown outcome (started, never finished) and
+  which were not run at all.
 - **The world comes back from the journal.** The lab environments stand in for the plant's
   systems and live in the worker's process. When one is missing (a restart, another process, a new
   branch), it is rebuilt from the session's seed by running the thread's tool calls again, and
   every result must match the journal. A mismatch fails the run instead of continuing in a world
-  its history does not describe. Tools that call a model (vision) or read the clock cannot be
+  its history does not describe. A step that ends abnormally (a crash, a lost claim, an error)
+  drops its worker's copy of the world, which may hold an effect the journal does not, and the
+  next step rebuilds it. Tools that call a model (vision) or read the clock cannot be
   replayed this way; real systems keep their own state and do not need it.
 - **Outages are postponed, not failed.** When every model on the route fails, the run goes back
   to the queue with a delay, up to `max_retries` times.
@@ -135,8 +139,11 @@ There are no edges between the jobs. A collector that is slow or failed cannot b
 or the assembler; at 05:00 the assembler gets every finished report and the list of missing ones,
 which the briefing names instead of filling in. A recurring request for a single agent (`POST /v1/schedules`), such as a
 check of the line every 15 minutes, is the same mechanism with one job. The schedule is a
-five-field cron expression evaluated on the wall clock of a time zone. A missed firing (the service was down) fires once and
-moves on, without a catch-up storm.
+five-field cron expression evaluated on the wall clock of a time zone. A missed firing (the
+service was down) fires once and moves on, without a catch-up storm. A due schedule is taken
+with a conditional update before it fires, so two schedulers sharing the database never fire it
+twice. A schedule that fails records its error (`last_error`) and moves to its next time; it
+does not stop the others, and neither the scheduler nor a worker thread dies on an error.
 
 ## Process files read on demand
 

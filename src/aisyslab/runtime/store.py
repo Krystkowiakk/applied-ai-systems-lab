@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS model_calls (
 CREATE TABLE IF NOT EXISTS response_cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, created_at REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS schedules (
     id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, name TEXT NOT NULL, cron TEXT NOT NULL,
-    action TEXT NOT NULL, next_at REAL NOT NULL);
+    action TEXT NOT NULL, next_at REAL NOT NULL, last_error TEXT);
 """
 
 
@@ -145,6 +145,9 @@ class Store:
         if self.path != ":memory:":
             self._db.execute("PRAGMA journal_mode=WAL")
         self._db.executescript(SCHEMA)
+        columns = {row[1] for row in self._db.execute("PRAGMA table_info(schedules)")}
+        if "last_error" not in columns:  # a database made before schedules recorded their errors
+            self._db.execute("ALTER TABLE schedules ADD COLUMN last_error TEXT")
 
     def close(self) -> None:
         with self._lock:
@@ -426,8 +429,13 @@ class Store:
         return self._all("SELECT * FROM executions WHERE run_id = ? ORDER BY started_at, rowid", run_id)
 
     def claim(self, worker: str, ttl: float) -> dict[str, Any] | None:
-        """Take the next run off the queue for ``ttl`` seconds; a heartbeat extends the claim."""
+        """Take the next run off the queue for ``ttl`` seconds; a heartbeat extends the claim.
+
+        The claim is a lease: the worker's name plus a token drawn for this claim, returned as the
+        run's ``claimed_by``. Every fenced write must present it. Two processes may both have a
+        worker-0; they never hold the same lease."""
         now = self.clock()
+        lease = f"{worker}/{uuid.uuid4().hex[:12]}"
         with self.tx() as db:
             row = db.execute(
                 """SELECT id FROM runs WHERE status = 'pending' AND (not_before IS NULL OR not_before <= ?)
@@ -438,7 +446,7 @@ class Store:
                 return None
             db.execute(
                 "UPDATE runs SET status = 'running', claimed_by = ?, claim_expires = ?, updated_at = ? WHERE id = ?",
-                (worker, now + ttl, now, row["id"]),
+                (lease, now + ttl, now, row["id"]),
             )
             run = self._run_row(db, row["id"])
             self._emit(db, run, "run_started", {"worker": worker, "retries": run["retries"]})
@@ -744,11 +752,6 @@ class Store:
             self._promote(db, row["thread_id"])
             return True
 
-    def thread_runs(self, thread_id: str) -> list[dict[str, Any]]:
-        return [
-            _run(r) for r in self._all("SELECT * FROM runs WHERE thread_id = ? ORDER BY created_at, rowid", thread_id)
-        ]
-
     # ----- events -----------------------------------------------------------------------------
     def _emit(self, db: sqlite3.Connection, run: dict[str, Any], kind: str, data: dict[str, Any]) -> int:
         cursor = db.execute(
@@ -757,9 +760,20 @@ class Store:
         )
         return int(cursor.lastrowid or 0)
 
-    def emit(self, run: dict[str, Any], kind: str, data: dict[str, Any]) -> int:
+    def emit(self, run: dict[str, Any], kind: str, data: dict[str, Any], worker: str | None = None) -> int:
+        """Record an event. With ``worker``, only while that lease still holds the run."""
         with self.tx() as db:
+            if worker is not None:
+                self._fence(db, run["id"], worker)
             return self._emit(db, run, kind, data)
+
+    def unfinished_calls(self, thread_id: str) -> set[str]:
+        """Tool calls that were started and never got a result: their outcome is unknown."""
+        rows = self._all(
+            "SELECT e.call_id FROM executions e JOIN runs r ON r.id = e.run_id WHERE r.thread_id = ? AND e.result IS NULL",
+            thread_id,
+        )
+        return {r["call_id"] for r in rows}
 
     def events(self, run_id: str, after: int = 0, limit: int = 1000) -> list[dict[str, Any]]:
         """Events of a run after a given event id. A root run's stream includes its child runs."""
@@ -860,9 +874,18 @@ class Store:
         rows = self._all("SELECT * FROM schedules WHERE next_at <= ? ORDER BY next_at, rowid", now)
         return [{**r, "action": json.loads(r["action"])} for r in rows]
 
-    def reschedule(self, schedule_id: str, next_at: float) -> None:
+    def take_schedule(self, schedule_id: str, due_at: float, next_at: float) -> bool:
+        """Move a due schedule to its next time; True for the one scheduler that moved it. Two
+        processes ticking at once both see it due; only one of them fires it."""
         with self.tx() as db:
-            db.execute("UPDATE schedules SET next_at = ? WHERE id = ?", (next_at, schedule_id))
+            cursor = db.execute(
+                "UPDATE schedules SET next_at = ? WHERE id = ? AND next_at = ?", (next_at, schedule_id, due_at)
+            )
+            return cursor.rowcount == 1
+
+    def schedule_failed(self, schedule_id: str, error: str | None) -> None:
+        with self.tx() as db:
+            db.execute("UPDATE schedules SET last_error = ? WHERE id = ?", (error, schedule_id))
 
     def latest_group(self, tenant_id: str, prefix: str) -> str | None:
         row = self._one(

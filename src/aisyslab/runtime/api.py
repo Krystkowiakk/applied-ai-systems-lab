@@ -71,7 +71,7 @@ class ScheduleIn(BaseModel):
     cron: str
     agent: str
     message: str = Field("", max_length=20_000)
-    seed: int = Field(0, ge=0)
+    seed: int = Field(0, ge=0, le=1_000_000)
     tz: str = "UTC"
 
 
@@ -82,7 +82,7 @@ class FanOutIn(BaseModel):
     collect_at: str
     assemble_at: str
     process: str = ""
-    seed: int = Field(0, ge=0)
+    seed: int = Field(0, ge=0, le=1_000_000)
     tz: str = "UTC"
 
 

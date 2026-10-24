@@ -174,7 +174,10 @@ def test_a_call_interrupted_mid_execution_is_retried_with_its_idempotency_key() 
     rt.run_until_idle()
 
     assert rt.store.run(run_id)["status"] == "completed"
-    assert len(ledgers) == 1 and len(ledgers[0].postings) == 1  # executed twice, applied once
+    # The crashed step's world was dropped (it held a posting the journal did not), rebuilt from the
+    # journal, and the call ran again under the same idempotency key: one posting in the world in use.
+    assert len(ledgers) == 2 and len(ledgers[-1].postings) == 1
+    assert list(ledgers[-1].postings) == [rt.store.executions(run_id)[0]["call_id"]]
     assert rt.store.executions(run_id)[0]["attempts"] == 2
     assert "tool_retry" in [e["kind"] for e in rt.store.events(run_id)]
 
@@ -233,19 +236,20 @@ def test_a_worker_that_lost_its_claim_cannot_write() -> None:
         revision_id=store.revision("assistant", {}),
         text="Hi",
     )
-    assert store.claim("A", ttl=30)["id"] == run["id"]
-    assert store.claim("B", ttl=30) is None  # one owner at a time
+    a = store.claim("A", ttl=30)["claimed_by"]  # a lease: the worker's name and a token
+    assert a.startswith("A/") and store.claim("B", ttl=30) is None  # one owner at a time
     clock.advance(31)
     assert store.recover(max_retries=3) == [run["id"]]
-    assert store.claim("B", ttl=30)["id"] == run["id"]
+    b = store.claim("B", ttl=30)["claimed_by"]
     for late_write in (
-        lambda: store.record_turn(run["id"], "A", {"text": "late"}),
-        lambda: store.heartbeat(run["id"], "A", 30),
-        lambda: store.finish(run["id"], "A", "completed"),
+        lambda: store.record_turn(run["id"], a, {"text": "late"}),
+        lambda: store.heartbeat(run["id"], a, 30),
+        lambda: store.finish(run["id"], a, "completed"),
+        lambda: store.record_turn(run["id"], "B", {"text": "a name is not a lease"}),
     ):
         with pytest.raises(ClaimLost):
             late_write()
-    assert store.record_turn(run["id"], "B", {"text": "on time", "tool_calls": []}) == 2
+    assert store.record_turn(run["id"], b, {"text": "on time", "tool_calls": []}) == 2
 
 
 def test_a_question_to_a_person_is_a_waiting_state_not_a_blocked_worker() -> None:

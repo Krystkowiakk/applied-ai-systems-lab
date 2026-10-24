@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import threading
 from collections.abc import Callable, Sequence
 from contextvars import ContextVar
@@ -94,9 +95,13 @@ def _calls(data: dict[str, Any]) -> list[ToolCall]:
     return [ToolCall(c["id"], c["name"], c["arguments"], c.get("parse_error")) for c in data["tool_calls"]]
 
 
-def to_messages(items: Sequence[dict[str, Any]]) -> list[Message]:
+log = logging.getLogger(__name__)
+
+
+def to_messages(items: Sequence[dict[str, Any]], unknown: frozenset[str] | set[str] = frozenset()) -> list[Message]:
     """The thread as the model sees it. A call left without a result by a run that stopped gets
-    an explicit error result, because providers reject a call without one."""
+    an explicit error result, because providers reject a call without one. A call that was started
+    (``unknown``) may have had its effect, and the model is told so."""
     out: list[Message] = []
     open_calls: dict[str, str] = {}
     for item in items:
@@ -114,10 +119,16 @@ def to_messages(items: Sequence[dict[str, Any]]) -> list[Message]:
             )
             continue
         for call_id, name in open_calls.items():
+            note = (
+                "Outcome unknown: the call was started, but the run stopped before its result was recorded. "
+                "Check the current state before you repeat it."
+                if call_id in unknown
+                else "Not executed: the run stopped before this call."
+            )
             out.append(
                 Message(
                     role="tool",
-                    content=json.dumps({"error": "Not executed: the run stopped before this call."}),
+                    content=json.dumps({"error": note}),
                     tool_call_id=call_id,
                     tool_name=name,
                     is_error=True,
@@ -290,6 +301,10 @@ class Runtime:
     def add_fanout(self, tenant_id: str, fanout: FanOut) -> list[str]:
         for name in (*fanout.collectors, fanout.assembler):
             self.agent(name)
+        note = self._process_text(fanout.process, "collect")
+        for name in fanout.collectors:  # refused now, not discovered by the scheduler later
+            if not self.agent(name).first_message(note, fanout.seed):
+                raise ValueError(f"'{name}' has no standing task and the process has no collect step to give it.")
         now = self.store.clock()
         return [
             self.store.add_schedule(
@@ -340,7 +355,6 @@ class Runtime:
                 title=f"{name}: briefing",
                 origin="schedule",
             )
-        self.store.reschedule(schedule["id"], Cron(schedule["cron"]).next_epoch(now, action["tz"]))
 
     def _process_text(self, process: str, step: str) -> str:
         name = f"{process}/{step}"
@@ -356,7 +370,15 @@ class Runtime:
         now = self.store.clock()
         fired = []
         for schedule in self.store.due_schedules(now):
-            self._fire(schedule, now)
+            following = Cron(schedule["cron"]).next_epoch(now, schedule["action"]["tz"])
+            if not self.store.take_schedule(schedule["id"], schedule["next_at"], following):
+                continue  # another scheduler took this occurrence
+            try:  # one schedule that fails must not stop the others, or the scheduler
+                self._fire(schedule, now)
+                self.store.schedule_failed(schedule["id"], None)
+            except Exception as exc:
+                log.exception("schedule %s failed", schedule["id"])
+                self.store.schedule_failed(schedule["id"], f"{type(exc).__name__}: {exc}")
             fired.append(schedule["id"])
         return {
             "delivered": delivered,
@@ -390,11 +412,19 @@ class Runtime:
 
         def schedule() -> None:
             while not self._stopping.wait(tick_every):
-                self.tick()
+                try:  # a failed pass is retried on the next tick; the thread must not die
+                    self.tick()
+                except Exception:
+                    log.exception("scheduler pass failed")
 
         def work(w: Worker) -> None:
             while not self._stopping.is_set():
-                if w.work_once() is None:
+                try:
+                    idle = w.work_once() is None
+                except Exception:  # e.g. the database was busy while claiming
+                    log.exception("worker %s failed to take a run", w.name)
+                    idle = True
+                if idle:
                     self._stopping.wait(tick_every)
 
         self._threads = [threading.Thread(target=schedule, name="scheduler", daemon=True)]
@@ -417,7 +447,7 @@ class Runtime:
             tenant_id=run["tenant_id"],
             run_id=run["id"],
             route=agent.route,
-            on_event=lambda kind, data: self.store.emit(run, kind, data),
+            on_event=lambda kind, data: self.store.emit(run, kind, data, run["claimed_by"]),
         )
         ctx = RunContext(
             tracer=_RunTracer(self.store, run),
@@ -464,7 +494,7 @@ class Runtime:
         sink = _TextSink(self.store, run, self.config.stream_flush_chars)
         turn = state.model.complete_stream(
             system=state.system,
-            messages=to_messages(items),
+            messages=to_messages(items, self.store.unfinished_calls(run["thread_id"])),
             tools=state.specs,
             on_text=sink,
             max_output_tokens=agent.max_output_tokens,
@@ -488,6 +518,11 @@ class Runtime:
         result = {"text": turn.text, "verified": agent.verified(state.env), "stop_reason": turn.stop_reason}
         if turn.stop_reason == "refusal":
             self.store.finish(run["id"], worker, "failed", result=result, error="The model refused.")
+            return "failed"
+        if turn.stop_reason == "max_tokens":  # an answer cut off is not a finished answer
+            self.store.finish(
+                run["id"], worker, "failed", result=result, error="The answer was cut off at the output limit."
+            )
             return "failed"
         self.store.finish(run["id"], worker, "completed", result=result)
         return "completed"
@@ -516,6 +551,8 @@ class Runtime:
                     child = self.agent(target)
                     seed = self.store.thread(run["thread_id"])["seed"]
                     children.append(ChildRun(call.id, target, self._revision(child), child.first_message(task, seed)))
+            elif self.store.count_tool_items(run["id"]) >= agent.max_tool_calls:  # the budget holds inside a turn
+                self._refuse(run, worker, call, f"Tool budget used up ({agent.max_tool_calls} calls); not run.")
             else:
                 last = (call, self._run_tool(run, worker, state, call))
         if questions or children:
@@ -635,37 +672,40 @@ class Worker:
         run = store.claim(self.name, config.claim_ttl)
         if run is None:
             return None
+        lease = run["claimed_by"]  # what every fenced write presents, not the worker's name
         beat = None
         if config.heartbeat_every:
-            beat = _Heartbeat(store, run["id"], self.name, config.claim_ttl, config.heartbeat_every)
+            beat = _Heartbeat(store, run["id"], lease, config.claim_ttl, config.heartbeat_every)
             beat.start()
+        clean = False
         try:
             for _ in range(config.yield_after_steps):
-                if runtime._step(run, self.name) != "continue":
+                if runtime._step(run, lease) != "continue":
                     break
-                store.heartbeat(run["id"], self.name, config.claim_ttl)
+                store.heartbeat(run["id"], lease, config.claim_ttl)
             else:
-                store.release(run["id"], self.name)
+                store.release(run["id"], lease)
+            clean = True
         except ClaimLost:
             pass  # recovered, cancelled or finished elsewhere: this worker's step is void
         except ModelUnavailable as exc:
             _quietly(
                 store.postpone,
                 run["id"],
-                self.name,
+                lease,
                 delay=config.retry_delay,
                 reason=str(exc),
                 max_retries=config.max_retries,
             )
         except (ModelError, ReplayDiverged) as exc:
-            _quietly(store.finish, run["id"], self.name, "failed", error=str(exc))
+            _quietly(store.finish, run["id"], lease, "failed", error=str(exc))
         except Exception as exc:  # a bug fails the run visibly instead of killing the worker
-            _quietly(
-                store.finish, run["id"], self.name, "failed", error=f"Internal error ({type(exc).__name__}): {exc}"
-            )
+            _quietly(store.finish, run["id"], lease, "failed", error=f"Internal error ({type(exc).__name__}): {exc}")
         finally:
             if beat is not None:
                 beat.stop()
+            if not clean:  # the cached world may hold an effect the journal does not: rebuild it next time
+                runtime.worlds.forget(run["thread_id"])
         return str(run["id"])
 
 

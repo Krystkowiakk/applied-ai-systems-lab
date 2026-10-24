@@ -296,6 +296,10 @@ async function follow(runId) {
     try {
       const res = await fetch(`/v1/runs/${runId}/events`, {
         headers: { Authorization: `Bearer ${state.token}`, "Last-Event-ID": String(last) }, signal: controller.signal });
+      if (res.status === 401 || res.status === 404) { // reconnecting will not help: say why and stop
+        $("events").append(el("li", {}, res.status === 401 ? "Stream refused: the token is not valid." : "Stream ended: the run no longer exists."));
+        return;
+      }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
