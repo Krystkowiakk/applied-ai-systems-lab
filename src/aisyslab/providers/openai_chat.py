@@ -110,10 +110,11 @@ class OpenAIChatModel:
                         on_text(event.delta)
                 final = stream.get_final_completion()
         except stopped as exc:
-            final = getattr(exc, "completion", None)  # type: ignore[assignment]
-            if final is None:  # filtered before anything came back
+            partial: Any = getattr(exc, "completion", None)
+            if partial is None:  # filtered before anything came back
                 usage = Usage(input_tokens=estimate_tokens(system + "".join(m.content for m in messages)))
                 return ModelTurn(text="", tool_calls=[], usage=usage, stop_reason="refusal", model=self.model)
+            final = partial
         except self._openai.APIError as exc:
             raise ModelError(f"{type(exc).__name__}: {exc}") from exc
         turn = parse_openai_response(final)
