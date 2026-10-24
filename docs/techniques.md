@@ -2,10 +2,49 @@
 
 Every technique I use to build AI systems and my own tools, as of October 2026, and the example
 that shows it. Each example comes from one of three settings: plant operations, industrial planning
-and software building (see [the README](../README.md#the-examples)).
+and software building.
 
 Every technique below runs today and has tests. Where a technique was also run against a live
 model, the linked page says what happened, including what failed.
+
+## The examples
+
+**Plant operations**
+
+| Example | The question | What it shows |
+|---|---|---|
+| [`inbox`](labs.md#inbox) | Three facts from the plant mailbox, with corrections and look-alike senders | two-step retrieval, query operators, a sender trust rule |
+| [`line-incident`](labs.md#line-incident) | Why did line 3 stop? | a context budget, reduction in code before any model call |
+| [`maintenance-portal`](labs.md#maintenance-portal) | Re-code one work order and close another | prompt injection handled by design, human approval |
+| [`quality-gate`](labs.md#quality-gate) | Which of tonight's batches pass the gate? | classic ML in code, target leakage |
+| [`shift-briefing`](labs.md#shift-briefing) | One report from three investigations | an orchestrator and specialists, a shared workspace |
+| [`quality-claims`](labs.md#quality-claims) | A customer complaint about a batch: decide, record, reply | data classification, anonymisation, moderation, quarantined extraction, a topic guard, an audit log |
+| [`shift-handover`](labs.md#shift-handover) | What does the next shift need to know? | observational memory, scopes, facts that supersede older ones |
+| [`procedures-rag`](labs.md#procedures-rag) | What do the procedures say? Answer, cite, or say it is not covered | hybrid retrieval, search across languages, checked citations |
+| [Voice on the shop floor](voice.md) | Voice notes at the machine filed as work requests; a spoken answer for the shift lead | speech-to-text grounded in the plant's vocabulary, speech cached and said at most once, a voice cascade on a latency budget |
+| [Visual work instructions](visual.md) | An instruction card for a maintenance step, released only after a check | a card drawn in code, a generated illustration with no text in it, two vision checks decided in code |
+
+**Industrial planning**
+
+| Example | The question | What it shows |
+|---|---|---|
+| [`supply-intake`](labs.md#supply-intake) | Which supplier delay stops a line tonight? | routing by content, vision cross-checked in code |
+| [`spare-part-run`](labs.md#spare-part-run) | Get a spare pump to the stopped line before the deadline | the model proposes, a simulator judges |
+| [`plant-database`](labs.md#plant-database) | Which work orders are blocked by a missing part? | schema discovery, read-only SQL |
+| [Ticket triage](evals.md) | Maintenance tickets to failure codes and priorities | eval sets, a calibrated judge, model comparison, prompt optimisation |
+| [`production-schedule`](labs.md#production-schedule) | Tomorrow's orders on three presses, with the planner's notes | code mode: the model writes a program that plans, run in a sandbox |
+| [`part-research`](labs.md#part-research) | A component is discontinued: what replaces it, from whom, how fast? | web search, a polite crawler, a deep research loop, a cited report |
+| [`parts-graph`](labs.md#parts-graph) | A supplier delays a part: which lines and orders does it hold up, and which can an alternate save? | graph RAG, extraction validated by a parser, facts with dates |
+| [Triage, batched, interviewed, trained](evals.md#many-tickets-in-one-request-under-a-schema) | The triage prompt run in batches, drafted from an interview with the planner, and set against a model trained on its examples | batches under a provider-enforced schema, a meta-prompt from an interview, training compared with prompting |
+
+**Software building**
+
+| Example | The question | What it shows |
+|---|---|---|
+| [`service-repair`](labs.md#service-repair) | Get the line's edge gateway running again | a restricted shell, policy enforced by the environment |
+| [MCP servers and host](mcp.md) | Use the labs' tools from any MCP client, and MCP servers from the agent | servers over stdio and HTTP, a host, tool discovery |
+| [Agent toolkit](architecture.md) | The loop under every example | typed tools, budgets, retries, providers, traces |
+| [Maintenance request service](runtime.md) | The team's requests as durable jobs, with a web UI | a model gateway, a durable runtime, streaming, tenants, cron |
 
 ## Model access and the agent loop
 

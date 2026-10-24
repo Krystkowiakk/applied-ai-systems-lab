@@ -1,4 +1,4 @@
-"""Registry of labs, in the order the README presents them."""
+"""Registry of labs; `aisyslab list` shows them in this order."""
 
 from __future__ import annotations
 

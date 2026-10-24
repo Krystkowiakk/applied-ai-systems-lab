@@ -71,7 +71,7 @@ def test_the_spreadsheet_rule_ignores_the_notes() -> None:
         env = ProductionScheduleEnv(seed, EnvOptions())
         baseline.solve(env, RunContext(tracer=Tracer()))
         verdicts.append(env.submissions[-1])
-    # The README's 2/20: accepted only where the notes happen not to bind; most plans break one.
+    # The 2/20 in docs/results.md: accepted only where the notes happen not to bind; most plans break one.
     assert sum(v.accepted for v in verdicts) == 2
     assert sum(v.code == "INFEASIBLE" for v in verdicts) > 10
 

@@ -25,6 +25,48 @@ goes into the context, how tool errors are shown to the model, how budgets are e
 each run costs. Each technique package is built on it alone; the labs combine them, and the
 service runs the labs' agents.
 
+## How a run flows
+
+```mermaid
+flowchart LR
+    CLI["aisyslab run / bench / eval"] --> Runner
+    Runner --> Env["Lab environment<br/>(seeded, optional chaos)"]
+    Runner --> Baseline["Baseline<br/>plain code"]
+    Runner --> Agent["Agent loop<br/>budgets in code"]
+    Agent --> Model["ChatModel<br/>OpenAI · Anthropic · local"]
+    Agent --> Tools["Toolbox<br/>typed args, errors as data"]
+    Agent -.->|via MCP| MCP["MCP host and servers"]
+    MCP -.-> Tools
+    Tools -->|retries for 503/429| Env
+    Baseline -->|retries for 503/429| Env
+    Env --> Verifier["Verifier<br/>deterministic feedback"]
+    Runner --> Trace["JSONL trace + report<br/>tokens, calls, verdicts"]
+```
+
+## Design principles
+
+1. **Decide where the model belongs before building.** A model is for what code cannot do:
+   reading free text, images, unknown schemas, ambiguous instructions. Everything else is code.
+2. **The model proposes, code disposes.** Plans go through simulators, values through validators,
+   actions through narrow APIs. Verifiers are code.
+3. **Feedback is a contract.** Verifiers name what is wrong ("no evidence for cooling-loop",
+   "that value comes from a superseded revision") and agents iterate on it.
+4. **Context is a budget.** Search before reading, grouped repeats instead of raw logs, bounded
+   tool output that says how to narrow the query, token counting before submitting, and compaction
+   that replaces the history with observations instead of editing turns in place.
+5. **Tools are an API for a reader without documentation.** Narrow, typed (pydantic), validated;
+   errors come back as data with a hint, and a bug in a tool never ends the run.
+6. **Policy lives in code, not in the prompt.** Forbidden paths, approval tokens, valid codes and read-only
+   SQL are enforced by the environment. The prompt explains them; it does not guard them.
+7. **Untrusted text is data.** HTML is parsed in code, free text arrives labelled, there are no bulk
+   tools to abuse, and the verifier counts blocked attempts, not just the final state.
+8. **No silent fallbacks.** A failing agent fails visibly. A fallback to code inside the agent would
+   hide whether the agent works, so comparisons stay honest.
+9. **Every run leaves a trace.** JSONL events for each generation, tool call, retry and verdict,
+   including model calls made inside tools (vision), so cost per completed task is real.
+10. **Measure before trusting.** A prompt is checked on an eval set with a holdout it never saw. A
+    model judge grades only what code cannot, and only after it is calibrated against human labels.
+
 ## Messages and providers
 
 `core/messages.py` defines one neutral conversation format: user messages (optionally with images),

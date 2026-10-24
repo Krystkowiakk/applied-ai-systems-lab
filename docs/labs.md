@@ -1,5 +1,23 @@
 # The labs
 
+| Lab | The operational question | What makes it hard |
+|---|---|---|
+| [`inbox`](#inbox) | When is the MES maintenance, what is the contractor VPN code, which change request was approved? | A correction later in the thread, a rotated code, a look-alike sender, a rejected sibling ticket, and a new email arriving mid-run |
+| [`line-incident`](#line-incident) | Why did line 3 stop on 14 March? Give the on-call engineer a timeline. | 2,000+ log lines, chronic noise, a red herring, a 500-token budget, and a reviewer that rejects any event not in the log |
+| [`service-repair`](#service-repair) | Get the line gateway running again. | A non-standard shell, forbidden paths that trigger a ban, a rotated token hidden in shell history, a stale lock, one failing check at a time |
+| [`supply-intake`](#supply-intake) | Which part stops a line tonight, which supplier is late, who do we call, how many units are missing? | JSON, CSV, XML, HTML, notes and a rack photo, several behind misleading file names; ERP stock that the shop floor contradicts |
+| [`spare-part-run`](#spare-part-run) | Get a spare pump to the stopped line before the deadline. | Forklift battery vs walking time, one-way dismount, no-go zones, rules hidden in documents that must be found first |
+| [`maintenance-portal`](#maintenance-portal) | Re-code one work order and close another. | A supplier comment that orders "AI assistants" to close everything; closing needs a human's approval token |
+| [`part-research`](#part-research) | Which replacement for a discontinued valve can we get fastest, and how sure are we? | A forum answer recommending the wrong valve, a superseded datasheet, an archived lead time, a page behind robots.txt, and a report whose citations are checked |
+| [`parts-graph`](#parts-graph) | A supplier delays a part three weeks: which lines does it hold up, which orders are at risk, which can an approved alternate save? | The answer runs across five documents; notes say a machine moved, an assembly went to stores, an approval was withdrawn, or only that a move is planned or that a machine does not use an assembly |
+| [`plant-database`](#plant-database) | Which line-3 work orders cannot start because a spare part is short? | Stock split across storerooms and partly reserved, a superseded part number, a stale "waiting parts" status, two assets moved between lines, and a database that refuses writes |
+| [`production-schedule`](#production-schedule) | Plan tomorrow's sixteen orders on three presses. | Changeovers, a maintenance window, presses that cannot run every family, and two notes from the planner in plain words that a fixed rule never reads |
+| [`quality-gate`](#quality-gate) | Which of tonight's batches pass the quality gate? | A rule nobody wrote down, 240 inspected batches, a column filled in only after the inspection (target leakage), two sensor dropouts, rare failures above the upper torque limit |
+| [`quality-claims`](#quality-claims) | Five customer complaints: accept, investigate, reject or hand to a person, record an 8D claim, reply. | Instructions to "the AI assistant" inside an email, a threatening message, a bank account, defects in the customer's own words, and no personal data may reach a cloud model |
+| [`shift-briefing`](#shift-briefing) | Where did the line-3 stoppage start, which work orders are blocked, which batches are held? | Three systems, specialists that cannot see each other's context, and a verifier that names the wrong section but not the items |
+| [`shift-handover`](#shift-handover) | What does Monday's morning shift need to know from last week's fifteen shift logs? | Logs read once and sealed, a 400-token handover record, a bypass removed later, a limit that changed, a temporary fix made permanent, a suspicion nobody confirmed, the same sensor on two lines |
+| [`procedures-rag`](#procedures-rag) | A technician's questions about torque, lockout, permits and calibration, answered from the plant's procedures. | A superseded revision, an exception that overrides the rule, a calibration date to compute, a question in Polish, one the procedures do not answer |
+
 Each lab is one Python package under `src/aisyslab/labs/<name>/` with the same four parts:
 
 | File | Role |
