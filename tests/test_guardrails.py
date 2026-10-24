@@ -224,3 +224,40 @@ def test_red_data_goes_only_to_the_local_model() -> None:
     assert report.accepted, report.error
     assert any(red.iban in text for text in local_seen)  # the local model read the account
     assert not any(red.iban in text for text in cloud_seen)  # no cloud call did
+
+
+def test_what_a_detector_finds_is_replaced_wherever_it_stands() -> None:
+    anonymizer = Anonymizer([*PATTERNS, directory_detector(["Anna Kowalska"])])
+    text = "Tel.+31 6 1234 5678, acct.NL91ABNA0417164300, Mr.Kowalska and ANNA KOWALSKA wrote."
+    redacted = anonymizer.anonymize(text)
+    assert redacted.level == RED
+    assert redacted.text == "Tel.[PHONE_1], acct.[IBAN_1], Mr.[PERSON_1] and [PERSON_2] wrote."
+    assert not leaked(redacted.text, ["+31 6 1234 5678", "NL91ABNA0417164300", "Kowalska", "Anna Kowalska"])
+
+
+def test_the_leak_check_does_not_share_the_anonymisers_blind_spots() -> None:
+    sent = "Contact ANNA KOWALSKA, account NL91 ABNA 0417 1643 00, phone +31-6-1234-5678."
+    assert leaked(sent, ["Anna Kowalska", "NL91ABNA0417164300", "+31 6 1234 5678"]) == [
+        "Anna Kowalska",
+        "NL91ABNA0417164300",
+        "+31 6 1234 5678",
+    ]
+    assert leaked("Hallberg ordered more", ["Berg"]) == []
+
+
+def test_entries_cut_from_the_end_show_against_a_head_kept_elsewhere() -> None:
+    log = AuditLog(b"key", clock=lambda: 0.0)
+    for n in range(4):
+        log.append("step", n=n)
+    head = log.head()
+    del log.entries[2:]
+    assert log.verify()[0] and not log.verify(head)[0]
+
+
+def test_sub_categories_are_never_laxer_than_their_parent() -> None:
+    from aisyslab.guardrails.moderation import DEFAULT_THRESHOLDS, over
+
+    for name, threshold in DEFAULT_THRESHOLDS.items():
+        parent = name.split("/")[0]
+        assert threshold <= DEFAULT_THRESHOLDS.get(parent, 1.0), name
+    assert over({"sexual/minors": 0.15}, DEFAULT_THRESHOLDS, 0.5) == {"sexual/minors": 0.15}

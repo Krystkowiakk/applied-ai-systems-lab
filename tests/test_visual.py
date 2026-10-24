@@ -95,3 +95,16 @@ def test_a_card_that_reads_back_differently_is_not_released() -> None:
 def test_without_a_vision_model_nothing_is_released() -> None:
     result = make_card(PROCEDURES["FE-03"], DiagramImages(), None)
     assert not result.released and result.report["why"] == "not checked: no vision model"
+
+
+def test_a_misread_that_contains_the_value_is_still_a_misread() -> None:
+    for old, new in (("95 Nm", "195 Nm"), ("0 bar", "50 bar"), ("50 bar", "150 bar")):
+        index = next(i for i, s in enumerate(HOSE.steps) if s.check == old)
+        result = make_card(HOSE, DiagramImages(), Vision([CLEAN], read_back_of(HOSE, change=(index, old, new))))
+        assert not result.released, (old, new)
+
+
+def test_capitals_symbols_and_digits_read_as_text() -> None:
+    marks = ("HYDRAULIC", "50 BAR", "PSI 3000", "WARNING!", "Ø16", "0-250 bar", "psi")
+    assert all(_reads_as_text({"characters": m, "where": "x"}) for m in marks)
+    assert not any(_reads_as_text({"characters": m, "where": "x"}) for m in ("two small circles", "hexagon", "•"))

@@ -152,9 +152,13 @@ class McpHost:
 
     # ----- lifecycle --------------------------------------------------------------------------
     def close(self) -> None:
+        """Shut the sessions down; never raises, so it cannot replace the result it is cleaning up after."""
         if self._requests is not None and not self._session.done():
             self._loop.call_soon_threadsafe(self._requests.put_nowait, None)
-            self._session.result(self._timeout)
+            try:
+                self._session.result(self._timeout)
+            except Exception:  # a hung call: stop the loop anyway, which ends stdio servers too
+                self._session.cancel()
         self._stop_loop()
 
     def _stop_loop(self) -> None:

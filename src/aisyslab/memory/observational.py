@@ -193,12 +193,13 @@ class ObservationalMemory:
 
 
 def in_scope(items: Sequence[T], scope: str | None, key: Callable[[T], str]) -> list[T]:
-    """Items whose scope matches: exactly, or by name ("press 2" finds "asset:press 2")."""
+    """Items whose scope matches: exactly, or by the whole name ("press 2" finds "asset:press 2",
+    and never "asset:press 22"; "line-1" never finds "line-12")."""
     if not scope:
         return list(items)
     wanted = normalise_scope(scope)
     name = wanted.split(":", 1)[-1]
-    return [i for i in items if key(i) == wanted or (name and name in key(i))]
+    return [i for i in items if key(i) == wanted or (name and key(i).split(":", 1)[-1] == name)]
 
 
 _KEEP_ORDER = {"open": 0, "unconfirmed": 1, "info": 2, "resolved": 3}
@@ -206,7 +207,10 @@ _STATUS = re.compile(r"\)\s*(open|unconfirmed|info|resolved)\s*:")
 
 
 def fit(record: str, budget: int) -> tuple[str, int]:
-    """The record cut to the budget, least important lines first; returns how many lines went."""
+    """The record cut to the budget, least important lines first; returns how many lines went.
+
+    Lines are kept in order of importance until the next one does not fit; nothing less important
+    is kept after that, even if it is short, so a resolved item never outlives an open one."""
     lines = [line for line in record.splitlines() if line.strip()]
     if estimate_tokens("\n".join(lines)) <= budget:
         return "\n".join(lines), 0
@@ -217,8 +221,9 @@ def fit(record: str, budget: int) -> tuple[str, int]:
 
     kept: list[tuple[int, str]] = []
     for index, line in sorted(enumerate(lines), key=rank):
-        if estimate_tokens("\n".join(text for _, text in [*kept, (index, line)])) <= budget:
-            kept.append((index, line))
+        if estimate_tokens("\n".join(text for _, text in [*kept, (index, line)])) > budget:
+            break
+        kept.append((index, line))
     kept.sort()
     return "\n".join(text for _, text in kept), len(lines) - len(kept)
 

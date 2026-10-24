@@ -12,9 +12,15 @@ the model calls, not instructions to the model: each one holds whether or not th
 card number that passes the Luhn check), **yellow** for personal data (names, e-mail addresses,
 phone numbers), **green** otherwise. `Anonymizer.anonymize` replaces personal data with
 placeholders such as `[PERSON_1]`, in layers: patterns first (exact and cheap), then a directory of
-known people (a CRM), then, optionally, a model for what both missed. The mapping stays in code:
+known people (a CRM), then, optionally, a model for what both missed. Each value is replaced where
+its detector found it, so what is detected is always replaced. The mapping stays in code:
 `Redacted.restore` puts the real values back into a reply written with placeholders, after every
 model has seen it.
+
+The patterns cover IBANs in capitals with or without spaces, card numbers with spaces or dashes
+(checked with Luhn), e-mail addresses and international phone numbers written with a `+`; the
+directory matches names in any case. National phone formats ("020 123 4567") and lower-case
+IBANs are not covered: that is the job of the next layer, a model, and of the leak check below.
 
 Red data never goes to a cloud model. With `--local-model`, a red e-mail is read by the model on
 this machine; without one, the red values are removed before any call.
@@ -43,14 +49,17 @@ sent. The writer and the checker are separate calls with separate instructions.
 ## A signed, chained audit log
 
 `AuditLog` signs every entry with an HMAC and chains it to the previous one, so a changed, removed
-or reordered entry fails `verify`. Model calls are logged as hashes and lengths, not text: the log
+or reordered entry fails `verify`. Entries cut from the end leave a shorter chain that still
+verifies on its own; `head()` (the count and the last hash), kept outside the log and passed to
+`verify`, catches that too. Model calls are logged as hashes and lengths, not text: the log
 proves what happened without becoming a second copy of the personal data.
 
 ## The leak check
 
 The lab's environment watches the boundary: every prompt bound for a cloud model passes
 `check_outgoing`, which blocks it if it contains a name, address, phone number or account from the
-claims. The check caught a gap while this was being built: phone numbers with a one-digit group
+claims. It does not reuse the anonymiser's patterns: names in any case, numbers with or without
+separators. The check caught a gap while this was being built: phone numbers with a one-digit group
 (`+31 6 1234 5678`) slipped past the anonymiser's pattern.
 
 ## A live run

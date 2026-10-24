@@ -48,6 +48,9 @@ TEEN_TY = {f"1{d}": f"{d}0" for d in range(3, 10)} | {f"{d}0": f"1{d}" for d in 
 MACHINE = re.compile(r"\b(?:m\.?\s?c\.?|emcee)[\s.-]*(\d)[\s.-]?(\d)(?![\s.-]?\d)", re.IGNORECASE)
 PART = re.compile(r"\b(?:p|pee)[\s.-]*(\d)[\s,.-]?(\d)[\s,.-]?(\d)[\s,.-]?(\d)(?![\s,.-]?\d)", re.IGNORECASE)
 LINE = re.compile(r"\bline\s*(\d)\b", re.IGNORECASE)
+# Anything that starts like an ID, with any number of digits: the ones not complete become questions.
+ANY_MACHINE = re.compile(r"\b(?:m\.?\s?c\.?|emcee)[\s.-]*\d(?:[\s.-]?\d)*", re.IGNORECASE)
+ANY_PART = re.compile(r"\b(?:p|pee)[\s.-]*\d(?:[\s,.-]?\d)*", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -99,9 +102,20 @@ class Vocabulary:
         for pattern, kind, prefix in ((MACHINE, "machine", "MC-"), (PART, "part", "P-")):
             for m in pattern.finditer(text):
                 self._check(grounded, m.group(0).strip(), kind, prefix + "".join(m.groups()))
+        complete = [m.span() for m in (*MACHINE.finditer(text), *PART.finditer(text))]
+        for pattern, kind, size in ((ANY_MACHINE, "machine", 2), (ANY_PART, "part", 4)):
+            for m in pattern.finditer(text):
+                started = m.start()
+                if any(a <= started < b for a, b in complete) or len(re.sub(r"\D", "", m.group(0))) == size:
+                    continue
+                grounded.unsure.append(
+                    {"heard": m.group(0).strip(), "candidates": [], "why": f"not a complete {kind} number"}
+                )
         for m in LINE.finditer(text):
             if f"L{m[1]}" in self.terms:
                 grounded.found.append({"heard": m.group(0), "id": f"L{m[1]}", "kind": "line", "how": "spoken"})
+            else:
+                grounded.unsure.append({"heard": m.group(0), "candidates": [], "why": f"the plant has no line {m[1]}"})
         machines = grounded.ids("machine")
         for term in self.terms.values():
             named = term.kind == "machine" and term.name and re.search(rf"\b{re.escape(term.name)}\b", lowered)

@@ -27,7 +27,10 @@ It is not a security boundary against code written to escape. A process on the s
 reach what Python can reach once it imports what it needs past these replacements. For code from
 someone you do not trust, run the same contract in a container or a microVM (E2B, Daytona,
 Firecracker); here it guards against the ordinary failures of model-written code: loops that never
-end, runaway memory, and a script that would quietly call the internet or read the keys.
+end, runaway memory or output, and a script that would quietly call the internet or read the keys
+in the environment. It does not hide the disk: the child runs as the same user and can open any
+file that user can, a `.env` beside the code included. Never serve a tool that runs code over a
+network without authentication in front of it (see [MCP](mcp.md#over-the-network)).
 
 ## A live run
 

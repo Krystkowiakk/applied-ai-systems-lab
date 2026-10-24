@@ -179,3 +179,65 @@ def test_a_retried_turn_resumes_the_journaled_answer_without_asking_again(tmp_pa
     resumed = again.turn(Audio(b"", "wav", "q"), turn_id="t1")
     assert resumed.question == "(resumed)" and more_calls == []
     assert [o for _, o in resumed.spoken] == ["skipped: delivered before"] * 3
+
+
+def test_incomplete_ids_and_unknown_lines_become_questions() -> None:
+    assert ground("P one oh four is broken").unsure[0]["why"] == "not a complete part number"
+    assert ground("M C four is down").unsure[0]["why"] == "not a complete machine number"
+    assert ground("line seven stopped").unsure == [
+        {"heard": "line 7", "candidates": [], "why": "the plant has no line 7"}
+    ]
+
+
+def test_a_model_cannot_file_a_guess_or_an_id_of_the_wrong_kind() -> None:
+    from aisyslab.voice.notes import model_request
+
+    press = ground("The press on line one is leaking from the main cylinder.")
+    guess = model_request(
+        lambda _s, _u: '{"machine": "MC-11", "part": null, "urgency": "soon", "question": "Which press?"}', press
+    )
+    assert guess == {"machine": None, "part": None, "urgency": "soon", "ask": True, "question": "Which press?"}
+    named = ground("The relief valve P 15 50 on M C thirteen.")
+    swapped = model_request(lambda _s, _u: '{"machine": "P-1515", "part": "MC-13", "urgency": "stop"}', named)
+    assert swapped["machine"] is None and swapped["part"] is None
+    settled = model_request(lambda _s, _u: '{"machine": "MC-13", "part": "P-1515", "urgency": "stop"}', named)
+    assert (settled["machine"], settled["part"], settled["ask"]) == ("MC-13", "P-1515", False)  # the name settles it
+
+
+def test_a_failed_stream_never_speaks_half_a_sentence(tmp_path: Path) -> None:
+    from aisyslab.core.model import ModelError
+
+    class Breaks:
+        name, provider = "breaks", "test"
+
+        def complete_stream(
+            self,
+            *,
+            system: str,
+            messages: Sequence[Message],
+            tools: Sequence[ToolSpec],
+            on_text,
+            max_output_tokens: int = 4096,
+        ) -> ModelTurn:  # type: ignore[no-untyped-def]
+            on_text("Close V1 first. Do not open V1 ")
+            raise ModelError("connection lost")
+
+        def complete(self, **_kwargs: object) -> ModelTurn:
+            raise NotImplementedError
+
+    cache = SpeechCache(tmp_path / "cache", SilentSynthesizer())
+    spoken: list[int] = []
+    speaker = Speaker(cache, DeliveryJournal(), lambda audio: spoken.append(len(audio.data)))
+    voice = VoiceCascade(Heard(), Breaks(), speaker, system="s", budget=LatencyBudget(first_sentence_s=5))  # type: ignore[arg-type]
+    with pytest.raises(RuntimeError, match="after 1 sentences"):
+        voice.turn(Audio(b"", "wav", "q"), turn_id="t1")
+    assert len(spoken) == 1  # "Close V1 first." was said; "Do not open V1" was not
+
+
+def test_an_unfinished_cache_write_is_never_served(tmp_path: Path) -> None:
+    synth = CountingSynthesizer()
+    cache = SpeechCache(tmp_path, synth)
+    key = cache.key("Line two is down.", voice="sage")
+    (tmp_path / f"{key}.wav.partial").write_bytes(b"half")
+    audio = cache.get("Line two is down.", voice="sage")
+    assert len(synth.calls) == 1 and audio.data != b"half"

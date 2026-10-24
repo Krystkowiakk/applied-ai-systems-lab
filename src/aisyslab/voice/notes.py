@@ -204,12 +204,18 @@ def model_request(call: Callable[[str, str], str], grounded: Grounded) -> dict[s
         data = json.loads(match.group(0)) if match else {}
     except json.JSONDecodeError:
         data = {}
-    known = {t.id for t in REGISTRY}
-    machine = data.get("machine") if data.get("machine") in known else None
-    part = data.get("part") if data.get("part") in known else None
+    kinds = {t.id: t.kind for t in REGISTRY}
+    candidates = {c for u in grounded.unsure for c in u.get("candidates", [])}
+    # A machine is certain only when grounding found it; one picked from an unsure list is a guess.
+    machine = data.get("machine") if data.get("machine") in grounded.ids("machine") else None
+    # A part may come from the candidates: the note's words (its name) can settle a number.
+    named = data.get("part")
+    part = named if isinstance(named, str) and kinds.get(named) == "part" else None
+    part = part if part in grounded.ids("part") or part in candidates else None
     urgency = data.get("urgency") if data.get("urgency") in URGENCIES else "soon"
+    question = str(data.get("question") or "") if machine is None else ""
     # Whether to ask is decided in code: a request without a certain machine cannot be filed.
-    return {"machine": machine, "part": part, "urgency": urgency, "ask": machine is None}
+    return {"machine": machine, "part": part, "urgency": urgency, "ask": machine is None, "question": question}
 
 
 def grade(note: VoiceNote, request: dict[str, Any]) -> dict[str, bool]:

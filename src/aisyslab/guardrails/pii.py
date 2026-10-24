@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 GREEN, YELLOW, RED = "green", "yellow", "red"
 LEVELS = (GREEN, YELLOW, RED)
 
-Finder = Callable[[str], list[str]]  # the values found in a text
+Finder = Callable[[str], list[tuple[int, int]]]  # where the values are in a text: (start, end)
 
 
 def _luhn(digits: str) -> bool:
@@ -32,7 +32,7 @@ def _luhn(digits: str) -> bool:
 
 def _pattern(regex: str, check: Callable[[str], bool] = lambda _v: True) -> Finder:
     compiled = re.compile(regex)
-    return lambda text: [m.group(0).strip() for m in compiled.finditer(text) if check(m.group(0))]
+    return lambda text: [m.span() for m in compiled.finditer(text) if check(m.group(0))]
 
 
 def _card(value: str) -> bool:
@@ -56,10 +56,11 @@ PATTERNS = (
 
 
 def directory_detector(people: Iterable[str]) -> Detector:
-    """Known people (a CRM, a staff list): full names first, then the parts of each name."""
+    """Known people (a CRM, a staff list), in any case: full names first, then the parts of each name."""
     names = sorted({n for person in people for n in (person, *person.split()) if len(n) > 2}, key=len, reverse=True)
-    compiled = re.compile(r"\b(" + "|".join(re.escape(n) for n in names) + r")\b") if names else None
-    return Detector("PERSON", YELLOW, lambda text: [m.group(0) for m in compiled.finditer(text)] if compiled else [])
+    alternatives = "|".join(re.escape(n) for n in names)
+    compiled = re.compile(rf"\b({alternatives})\b", re.IGNORECASE) if names else None
+    return Detector("PERSON", YELLOW, lambda text: [m.span() for m in compiled.finditer(text)] if compiled else [])
 
 
 @dataclass
@@ -88,21 +89,42 @@ class Anonymizer:
         return RED if RED in levels else YELLOW if YELLOW in levels else GREEN
 
     def anonymize(self, text: str) -> Redacted:
+        """Replace exactly what each detector found, where it found it: what is detected is replaced."""
         result = Redacted(text, self.classify(text))
         counters: dict[str, int] = {}
+        known: dict[tuple[str, str], str] = {}  # (kind, value) -> placeholder; a name in any case is one name
         for detector in self.layers:
-            # Longest values first, so "Anna Kowalska" is replaced before "Anna".
-            for value in sorted(set(detector.find(result.text)), key=len, reverse=True):
-                if value in result.mapping.values() or PLACEHOLDER.fullmatch(value):
-                    continue
-                counters[detector.kind] = counters.get(detector.kind, 0) + 1
-                placeholder = f"[{detector.kind}_{counters[detector.kind]}]"
-                result.mapping[placeholder] = value
-                result.text = re.sub(rf"(?<![\w@.]){re.escape(value)}(?![\w@])", placeholder, result.text)
+            spans = [s for s in detector.find(result.text) if not PLACEHOLDER.fullmatch(result.text[s[0] : s[1]])]
+            for start, end in spans:  # numbered in reading order
+                value = result.text[start:end]
+                key = (detector.kind, value.lower() if detector.kind == "PERSON" else value)
+                if key not in known:
+                    counters[detector.kind] = counters.get(detector.kind, 0) + 1
+                    known[key] = f"[{detector.kind}_{counters[detector.kind]}]"
+                    result.mapping[known[key]] = value
+            for start, end in reversed(spans):  # replaced from the end, so earlier offsets stay valid
+                value = result.text[start:end]
+                key = (detector.kind, value.lower() if detector.kind == "PERSON" else value)
+                result.text = result.text[:start] + known[key] + result.text[end:]
         result.found = dict(counters)
         return result
 
 
+SEPARATORS = re.compile(r"[\s.()/-]")
+
+
 def leaked(text: str, secrets: Iterable[str]) -> list[str]:
-    """Which of the given values appear in a text, as whole words: a check on what is about to leave."""
-    return [s for s in secrets if len(s) > 2 and re.search(rf"(?<![\w@.]){re.escape(s)}(?![\w@])", text)]
+    """Which of the given values appear in a text: a check on what is about to leave, independent of
+    how the anonymiser found them. Names and words in any case, as whole words; numbers (accounts,
+    cards, phones) with or without separators."""
+    squeezed = SEPARATORS.sub("", text).lower()
+    found = []
+    for secret in secrets:
+        if len(secret) <= 2:
+            continue
+        if sum(c.isdigit() for c in secret) >= 6:
+            if SEPARATORS.sub("", secret).lower() in squeezed:
+                found.append(secret)
+        elif re.search(rf"(?<!\w){re.escape(secret)}(?!\w)", text, re.IGNORECASE):
+            found.append(secret)
+    return found

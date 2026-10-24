@@ -23,7 +23,7 @@ from aisyslab.sandbox import run_python
 
 def test_the_sandbox_runs_code_with_its_files_and_bounded_output() -> None:
     result = run_python("import lib\nprint(lib.X * 2)\nprint('x' * 50000)", files={"lib.py": "X = 21"}, max_output=200)
-    assert result.ok and result.stdout.startswith("42") and "characters cut" in result.stdout
+    assert result.ok and result.stdout.startswith("42") and "bytes cut" in result.stdout
 
 
 def test_the_sandbox_has_no_keys_no_network_no_subprocesses_and_a_clock(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -65,13 +65,20 @@ def test_the_evaluator_names_what_is_wrong() -> None:
         assert expected in problems
 
 
-@pytest.mark.parametrize("seed", range(5))
-def test_the_spreadsheet_rule_ignores_the_notes(seed: int) -> None:
-    env = ProductionScheduleEnv(seed, EnvOptions())
-    baseline.solve(env, RunContext(tracer=Tracer()))
-    verdict = env.submissions[-1]
-    assert verdict.code in ("OK", "LATE", "INFEASIBLE")
-    assert sum(ProductionScheduleEnv(s, EnvOptions()) is not None for s in range(1)) == 1
+def test_the_spreadsheet_rule_ignores_the_notes() -> None:
+    verdicts = []
+    for seed in range(20):
+        env = ProductionScheduleEnv(seed, EnvOptions())
+        baseline.solve(env, RunContext(tracer=Tracer()))
+        verdicts.append(env.submissions[-1])
+    # The README's 2/20: accepted only where the notes happen not to bind; most plans break one.
+    assert sum(v.accepted for v in verdicts) == 2
+    assert sum(v.code == "INFEASIBLE" for v in verdicts) > 10
+
+
+def test_runaway_output_is_capped_on_disk_not_held_in_memory() -> None:
+    flood = run_python("import sys\nfor _ in range(200_000):\n    sys.stdout.write('x' * 1000)", max_output=300)
+    assert not flood.ok and len(flood.stdout) < 400 and "cut" in flood.stdout
 
 
 def test_code_in_the_sandbox_plans_with_the_library_and_the_agent_submits_it() -> None:

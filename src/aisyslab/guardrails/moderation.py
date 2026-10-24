@@ -12,14 +12,20 @@ from dataclasses import dataclass, field
 
 from ..core.model import ModelError
 
-DEFAULT_THRESHOLDS = {
+DEFAULT_THRESHOLDS = {  # every category the moderation model reports; a sub-category is never laxer than its parent
     "harassment": 0.5,
     "harassment/threatening": 0.2,
     "hate": 0.3,
     "hate/threatening": 0.2,
+    "illicit": 0.5,
+    "illicit/violent": 0.3,
     "violence": 0.4,
+    "violence/graphic": 0.4,
     "self-harm": 0.2,
+    "self-harm/intent": 0.2,
+    "self-harm/instructions": 0.2,
     "sexual": 0.5,
+    "sexual/minors": 0.1,
 }
 
 

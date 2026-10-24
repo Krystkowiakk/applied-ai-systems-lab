@@ -155,3 +155,22 @@ def test_store_report_rejects_sources_never_fetched() -> None:
     with pytest.raises(ToolError, match="never fetched"):
         env.store_report("A [1].", ["https://hydrax.example/products/hx-24"])
     assert json.loads(json.dumps(env.search("HX-24 lead time")))["results"]
+
+
+def test_a_port_user_info_or_trailing_slash_does_not_get_past_robots() -> None:
+    c, _clock = crawler()
+    for sneaky in ("https://a.example:443/private/x", "https://u@a.example/private/x", "https://a.example/private/"):
+        with pytest.raises(ToolError, match=r"robots\.txt"):
+            c.fetch(sneaky)
+    assert canonical("https://U@A.example:443/one/?id=2#top") == "https://a.example/one?id=2"
+    assert canonical("http://a.example:8080/one") == "http://a.example:8080/one"
+    c.fetch("https://a.example:443/one")
+    c.fetch("https://a.example/two")
+    assert c.waited == pytest.approx(1.0)  # one host, however the URL spelled it
+
+
+def test_grouped_and_ranged_citations_are_checked_too() -> None:
+    sources = ["https://a.example/one", "https://a.example/two"]
+    fetched = list(sources)
+    assert check_citations("A [1, 2]. B [1-2].", sources, fetched) == []
+    assert check_citations("A [1, 7]. B [2-3].", sources, fetched) == ["[3] has no source", "[7] has no source"]

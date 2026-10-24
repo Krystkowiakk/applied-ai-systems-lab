@@ -18,6 +18,7 @@ from aisyslab.labs.shift_handover import baseline
 from aisyslab.labs.shift_handover.env import HANDOVER_BUDGET, ShiftHandoverEnv
 from aisyslab.labs.shift_handover.logs import LABELS, build
 from aisyslab.memory import ObservationalMemory, fit, normalise_scope, parse_observations
+from aisyslab.memory.observational import in_scope
 
 
 def test_observer_output_is_validated() -> None:
@@ -164,3 +165,16 @@ def test_recall_treats_scope_as_a_soft_filter_and_repeats_are_kept_once() -> Non
     elsewhere = env.recall("S4 jumper", scope="plant")
     assert "searched every scope" in elsewhere["hint"] and elsewhere["observations"][0]["scope"] == "line-3"
     assert env.read_handover()["scopes_kept"] == {"asset:press 2": 1, "line-3": 1}
+
+
+def test_a_scope_matches_the_whole_name_only() -> None:
+    items = [{"scope": s} for s in ("line-1", "line-12", "asset:press 2", "asset:press 22")]
+    assert [i["scope"] for i in in_scope(items, "line-1", key=lambda i: i["scope"])] == ["line-1"]
+    assert [i["scope"] for i in in_scope(items, "press 2", key=lambda i: i["scope"])] == ["asset:press 2"]
+
+
+def test_fitting_never_keeps_a_resolved_line_over_an_open_one() -> None:
+    long_open = "(line-3) open: " + "the coolant pump on line 3 still leaks at the seal " * 3
+    record = f"(line-1) resolved: fixed.\n{long_open}"
+    kept, cut = fit(record, budget=12)
+    assert "resolved" not in kept and cut == 2

@@ -31,7 +31,8 @@ CREATE TABLE edges (
     scope TEXT NOT NULL DEFAULT '',
     since TEXT,
     until TEXT,
-    sources TEXT NOT NULL
+    sources TEXT NOT NULL,
+    ended_by TEXT NOT NULL DEFAULT '{}'  -- what ended it: {"source|fact": date}; until is the earliest
 );
 CREATE INDEX edges_out ON edges(src, rel);
 CREATE INDEX edges_in ON edges(dst, rel);
@@ -128,13 +129,17 @@ class GraphStore:
     # Facts
 
     def add(self, fact: Fact, source: str) -> list[str]:
-        """Store a fact from a source. Returns what it changed beyond itself, in words."""
+        """Store a fact from a source. Returns what it changed beyond itself, in words.
+
+        Every ending is recorded with its cause (the source and the fact that ended it), so that
+        withdrawing a fact undoes what it ended, and the facts give the same timeline in any order."""
         relation = self.schema.relation(fact.rel)
         if relation is None:
             raise ValueError(f"unknown relation {fact.rel}")
         for node_id in (fact.src, fact.dst, fact.scope):
             if node_id and self.node(node_id) is None:
                 self.add_node(node_id)
+        cause = f"{source}|{fact}"
         same = self._rows("src = ? AND rel = ? AND dst = ? AND scope = ?", fact.src, fact.rel, fact.dst, fact.scope)
         for row in same:  # already known, or known with a date this fact fills in (in either order)
             if (
@@ -142,34 +147,53 @@ class GraphStore:
                 or (fact.until and row["until"] == fact.until and row["since"] in (None, fact.since))
                 or (fact.since and not fact.until and row["since"] is None and (row["until"] or "") > fact.since)
             ):
-                self._update(row, source, since=row["since"] or fact.since)
+                end = (cause, fact.until) if fact.until else None
+                self._update(row, source, since=row["since"] or fact.since, end=end)
                 return []
         current = next(
             (r for r in same if r["until"] is None and (fact.since is None or r["since"] in (None, fact.since))), None
         )
         if current is not None:  # this fact dates or ends one we hold
-            self._update(current, source, since=current["since"] or fact.since, until=fact.until)
+            end = (cause, fact.until) if fact.until else None
+            self._update(current, source, since=current["since"] or fact.since, end=end)
             return [f"{_fact(current)} ended {fact.until}"] if fact.until else []
         changes = []
+        ends: dict[str, str] = {cause: fact.until} if fact.until else {}
         if relation.functional and fact.since and not fact.until:
-            for row in self._rows(
-                "src = ? AND rel = ? AND scope = ? AND dst != ? AND until IS NULL AND (since IS NULL OR since < ?)",
+            # One target at a time: this fact ends whatever holds at its start, and holds itself
+            # until the next start already known.
+            others = self._rows(
+                "src = ? AND rel = ? AND scope = ? AND dst != ?", fact.src, fact.rel, fact.scope, fact.dst
+            )
+            for row in others:
+                if (row["since"] is None or row["since"] < fact.since) and (
+                    row["until"] is None or row["until"] > fact.since
+                ):
+                    self._update(row, source, end=(cause, fact.since))
+                    changes.append(f"{_fact(row)} ends {fact.since}: superseded by {fact}")
+            later = [r for r in others if r["since"] is not None and r["since"] > fact.since]
+            if later:
+                following = min(later, key=lambda r: str(r["since"]))
+                ends[f"{json.loads(following['sources'])[0]}|{_fact(following)}"] = following["since"]
+        self.db.execute(
+            "INSERT INTO edges (src, rel, dst, scope, since, until, sources, ended_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
                 fact.src,
                 fact.rel,
-                fact.scope,
                 fact.dst,
+                fact.scope,
                 fact.since,
-            ):
-                self._update(row, source, until=fact.since)
-                changes.append(f"{_fact(row)} ends {fact.since}: superseded by {fact}")
-        self.db.execute(
-            "INSERT INTO edges (src, rel, dst, scope, since, until, sources) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (fact.src, fact.rel, fact.dst, fact.scope, fact.since, fact.until, json.dumps([source])),
+                min(ends.values()) if ends else None,
+                json.dumps([source]),
+                json.dumps(ends),
+            ),
         )
         return changes
 
     def remove(self, fact: Fact, source: str) -> bool:
-        """Withdraw what one source said about a fact; the fact goes when no source is left."""
+        """Withdraw what one source said about a fact: the fact goes when no source is left, and
+        whatever this fact ended holds again unless something else ended it."""
+        cause = f"{source}|{fact}"
         removed = False
         for row in self._rows(
             "src = ? AND rel = ? AND dst = ? AND scope = ?", fact.src, fact.rel, fact.dst, fact.scope
@@ -180,9 +204,16 @@ class GraphStore:
             removed = True
             if sources == [source]:
                 self.db.execute("DELETE FROM edges WHERE id = ?", (row["id"],))
-            else:
-                sources.remove(source)
-                self.db.execute("UPDATE edges SET sources = ? WHERE id = ?", (json.dumps(sources), row["id"]))
+                continue
+            sources.remove(source)
+            self.db.execute("UPDATE edges SET sources = ? WHERE id = ?", (json.dumps(sources), row["id"]))
+        for row in self._rows("src = ? AND rel = ? AND scope = ?", fact.src, fact.rel, fact.scope):
+            ends = json.loads(row["ended_by"])
+            if ends.pop(cause, None) is not None:
+                until = min(ends.values()) if ends else None
+                self.db.execute(
+                    "UPDATE edges SET until = ?, ended_by = ? WHERE id = ?", (until, json.dumps(ends), row["id"])
+                )
         return removed
 
     # Reading
@@ -254,15 +285,20 @@ class GraphStore:
     def _rows(self, where: str, *params: Any) -> list[sqlite3.Row]:
         return self.db.execute(f"SELECT * FROM edges WHERE {where} ORDER BY id", params).fetchall()
 
-    def _update(self, row: sqlite3.Row, source: str, **dates: str | None) -> None:
+    def _update(
+        self, row: sqlite3.Row, source: str, *, since: str | None = None, end: tuple[str, str] | None = None
+    ) -> None:
+        """Credit the source, fill in a start, and record an ending with its cause."""
         sources = json.loads(row["sources"])
         if source not in sources:
             sources.append(source)
-        since = dates.get("since", row["since"])
-        until = dates.get("until", row["until"])
+        ends = json.loads(row["ended_by"])
+        if end is not None:
+            ends[end[0]] = end[1]
+        until = min(ends.values()) if ends else None
         self.db.execute(
-            "UPDATE edges SET since = ?, until = ?, sources = ? WHERE id = ?",
-            (since, until, json.dumps(sources), row["id"]),
+            "UPDATE edges SET since = ?, until = ?, sources = ?, ended_by = ? WHERE id = ?",
+            (since or row["since"], until, json.dumps(sources), json.dumps(ends), row["id"]),
         )
 
     def _relation_names(self) -> str:

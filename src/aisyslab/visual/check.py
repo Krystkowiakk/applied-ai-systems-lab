@@ -66,13 +66,21 @@ def _json(text: str) -> dict[str, Any]:
 
 
 def _reads_as_text(mark: Any) -> bool:
-    """Code decides what counts as text: a short token of letters or digits ("G5", "6"). A shape the
-    model describes in words ("two small circles") does not; a bare string cannot be told apart from
-    its description, so it counts."""
+    """Code decides what counts as text. Digits, capitals and anything beyond plain lower-case
+    letters always do ("G5", "50 BAR", "WARNING!", "Ø16"), and so does a short lower-case token
+    ("psi"). A lower-case phrase or a long lower-case word is the model describing a shape
+    ("two small circles", "hexagon"). A bare string cannot be told apart from a description, so it
+    counts."""
     if not isinstance(mark, dict):
         return True
     shape = str(mark.get("characters", "")).strip()
-    return bool(re.fullmatch(r"[A-Za-z0-9./-]{1,8}", shape)) and any(c.isalnum() for c in shape)
+    if not shape:
+        return False
+    if any(c.isdigit() or c.isupper() or (c.isalpha() and not c.isascii()) for c in shape):
+        return True
+    if not re.fullmatch(r"[a-z ]+", shape):  # lower case with symbols ("bar!", "50%") reads as text
+        return any(c.isalnum() or c in "°%!#" for c in shape)
+    return " " not in shape and len(shape) <= 4
 
 
 def _describe(mark: Any) -> str:
@@ -103,7 +111,8 @@ def read_back(vision: VisionCall, card: bytes, procedure: Procedure) -> dict[str
     if len(read) != len(procedure.steps):
         problems.append(f"read {len(read)} steps, the procedure has {len(procedure.steps)}")
     for number, (step, seen) in enumerate(zip(procedure.steps, read, strict=False), 1):
-        if step.check and step.check not in seen:
+        # The value must stand on its own: "195 Nm" does not contain a reading of "95 Nm".
+        if step.check and not re.search(rf"(?<![\w.]){re.escape(step.check)}(?!\w)", seen):
             problems.append(f"step {number}: '{step.check}' not read back (read: {seen!r})")
     return {"read": read, "ok": not problems, "problems": problems}
 

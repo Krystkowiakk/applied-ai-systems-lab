@@ -248,3 +248,43 @@ def test_a_missed_fact_is_corrected_through_the_parser() -> None:
     assert fixed["added"] == list(move.facts) and "L9 does not appear" in fixed["rejected"][0]
     assert before["results"][0]["documents"] == ["layout"] and after["results"][0]["documents"] == [move.id]
     assert before["results"][0]["path"] != after["results"][0]["path"]
+
+
+def timeline(g: GraphStore, machine: str) -> list[str]:
+    return sorted(str(e.fact) for e in g.edges(machine, day=DAY, rel="RUNS_ON", direction="out"))
+
+
+def test_withdrawing_a_fact_undoes_what_it_ended() -> None:
+    g = plant()
+    move = Fact("MC-14", "RUNS_ON", "L3", since="2026-10-14")
+    g.add(move, "note-x")
+    assert lines_of(g, "MC-14") == ["L3"]
+    assert g.remove(move, "note-x")
+    assert lines_of(g, "MC-14") == ["L2"] and g.conflicts(day=DAY) == []  # the layout holds again
+    ending = Fact("MC-14", "RUNS_ON", "L2", until="2026-10-14")
+    g.add(ending, "note-y")
+    assert lines_of(g, "MC-14") == []
+    g.remove(ending, "note-y")
+    assert lines_of(g, "MC-14") == ["L2"]
+
+
+def test_facts_give_the_same_timeline_in_any_order() -> None:
+    move = Fact("MC-14", "RUNS_ON", "L3", since="2026-10-14")
+    planned = Fact("MC-14", "RUNS_ON", "L1", since="2026-11-30")
+    first, second = plant(), plant()
+    first.add(move, "changeover")
+    first.add(planned, "minutes")
+    second.add(planned, "minutes")
+    second.add(move, "changeover")
+    assert (
+        timeline(first, "MC-14")
+        == timeline(second, "MC-14")
+        == [
+            "MC-14 RUNS_ON L1 since 2026-11-30",
+            "MC-14 RUNS_ON L2 until 2026-10-14",
+            "MC-14 RUNS_ON L3 since 2026-10-14 until 2026-11-30",
+        ]
+    )
+    assert first.conflicts(day=DAY) == second.conflicts(day=DAY) == []
+    second.remove(planned, "minutes")  # the plan is cancelled: the move holds with no end
+    assert "MC-14 RUNS_ON L3 since 2026-10-14" in timeline(second, "MC-14")

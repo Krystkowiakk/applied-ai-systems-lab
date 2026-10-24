@@ -17,14 +17,15 @@ and it may not contain anything that reads as text.
 decide:
 
 - **The illustration.** The model lists every mark that resembles letters or digits, says what the
-  image shows and whether anything is unsafe. Code counts a mark as text when it is a short token of
-  letters or digits ("G5", "6"); a shape described in words ("two small circles") is not. An answer
-  that does not parse is a rejection. A rejected image is generated once more with the reason in
-  the prompt; if that one fails too, the card goes out without an illustration, which is always
-  safe.
+  image shows and whether anything is unsafe. Code decides what counts as text: digits, capitals
+  and symbols always ("G5", "50 BAR", "Ø16"), a short lower-case token too; a shape described in
+  lower-case words ("two small circles") does not. An answer that does not parse is a rejection.
+  A rejected image is generated once more with the reason in the prompt; if that one fails too,
+  the card goes out without an illustration, which is always safe.
 - **The finished card.** The model copies the numbered steps as printed. Code compares the reading
   with the procedure: the number of steps, and each step's critical value (a torque, a pressure, a
-  part number). A card that reads back differently is not released.
+  part number) as a value of its own, so "195 Nm" is not a reading of "95 Nm". A card that reads
+  back differently is not released.
 
 The model never says that a card is fine. It reports what it sees, and the rules are in code.
 

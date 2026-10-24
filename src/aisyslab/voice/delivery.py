@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 import threading
 from collections.abc import Callable
@@ -38,10 +39,14 @@ class SpeechCache:
     def get(self, text: str, *, voice: str, instructions: str = "") -> Audio:
         key = self.key(text, voice=voice, instructions=instructions)
         for path in self.directory.glob(f"{key}.*"):
+            if path.suffix == ".partial":  # a write that never finished is not a clip
+                continue
             self.hits += 1
             return Audio(path.read_bytes(), path.suffix[1:], key)
         audio = self.synthesizer.synthesize(text, voice=voice, instructions=instructions)
-        (self.directory / f"{key}.{audio.format}").write_bytes(audio.data)
+        partial = self.directory / f"{key}.{audio.format}.partial"
+        partial.write_bytes(audio.data)
+        os.replace(partial, self.directory / f"{key}.{audio.format}")  # a crash never leaves half a clip
         self.misses += 1
         return Audio(audio.data, audio.format, key)
 
@@ -114,7 +119,7 @@ class Speaker:
         """Synthesize ahead of time (a filler, a fixed phrase), so saying it later costs no wait."""
         self.cache.get(text, voice=self.voice, instructions=self.instructions)
 
-    def say(self, scope: str, text: str) -> str:
+    def say(self, scope: str, text: str, *, before_play: Callable[[], None] | None = None) -> str:
         """Play one sentence at most once. Returns what happened: played, or why it was skipped."""
         uid = utterance_id(scope, text)
         state = self.journal.state(uid)
@@ -125,6 +130,8 @@ class Speaker:
         audio = self.cache.get(text, voice=self.voice, instructions=self.instructions)  # before the claim
         if not self.journal.begin(uid, text):
             return "skipped: claimed by another speaker"
+        if before_play is not None:
+            before_play()
         self.play(audio)
         self.journal.delivered(uid)
         return "played"

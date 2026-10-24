@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +42,9 @@ class _Vision:
 
 
 def run(args: argparse.Namespace) -> int:
+    if (args.model or args.effort) and not args.provider:
+        print("error: --model and --effort need --provider", file=sys.stderr)
+        return 2
     procedure = PROCEDURES[args.procedure]
     generator: ImageGenerator = OpenAIImages(args.image_model) if args.images == "openai" else DiagramImages()
     vision = _Vision(make_model(args.provider, args.model, effort=args.effort)) if args.provider else None

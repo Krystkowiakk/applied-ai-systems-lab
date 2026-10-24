@@ -20,7 +20,10 @@ prompt for models that read one (`gpt-4o-transcribe`) or as keywords for models 
   one", when line one has two, becomes a question.
 
 Nothing is guessed. Whether to ask the technician is decided in code: a request without a certain
-machine cannot be filed. The model only writes the question.
+machine cannot be filed, and a machine is certain only when grounding found it. One the model
+picks from a list of candidates is a guess, so the request asks instead; the model writes the
+question. An ID that is incomplete ("P one oh four") or names a line the plant does not have
+becomes a question too, never a silent gap.
 
 ## The evaluation: ten voice notes
 
@@ -76,13 +79,19 @@ cut once more at its first clause of four words or more, because a short clause 
 Each stage has a budget (transcription 1.5 s, the model's first sentence 2.0 s, the first sound 4.0
 s). When the model misses its budget, a filler fills the silence. The finished answer is journaled,
 so a retried turn speaks it from the first sentence that cannot have been heard instead of asking
-the model again.
+the model again. A stream that breaks mid-answer never speaks its unfinished sentence; a retry
+then has no finished answer to resume and asks the model again, so what was heard may come once
+more in other words.
 
 Two live runs, one each, so these are what happened, not averages:
 
 - The first: transcription 1.06 s, first sentence 1.72 s, first sound 4.67 s, over budget because
-  the first sentence had 25 words and its speech took about three seconds. Asking again with the same
-  turn spoke nothing twice: three sentences "delivered before", no transcription, no model call.
-- The fix: the first-clause cut, and the filler synthesized before the first turn.
-- The second: the model took 2.9 s to its first sentence, so the filler played at 3.7 s, then
-  "Line 2 is down:". The filler still had to be synthesized in that run; it is now prepared ahead.
+  the first sentence had 25 words and its speech took about two seconds to synthesise. Asking again
+  with the same turn spoke nothing twice: three sentences "delivered before", no transcription, no
+  model call.
+- The fix: the first-clause cut, and the filler synthesised before the first turn.
+- The second: the model had no sentence ready within its 2.0 s budget, so the filler played, and
+  the first sound came at 3.7 s; then "Line 2 is down:". That run timed the first sentence only
+  after the filler had played (2.9 s, an upper bound); the clock now stops when the model writes
+  it, and the first sound is timed when playback starts. The filler still had to be synthesised in
+  that run; it is now prepared ahead.

@@ -35,6 +35,13 @@ To work a lab from Claude Desktop, add it to `claude_desktop_config.json`:
 desktop app and never a web service. Streamable HTTP is the default for anything remote or
 shared, and it is where sessions and authentication belong.
 
+### Over the network
+
+`aisyslab mcp --transport http` binds to this machine only (127.0.0.1, ::1 or localhost) and
+refuses any other address. The labs' tools include one that runs code (`production-schedule`'s
+`run_python`), and the server has no authentication of its own: to reach it from elsewhere, put
+a proxy in front of it that authenticates every request.
+
 ## Use MCP servers from the agent loop
 
 `McpHost` connects to several servers at once (an in-process server, a stdio command or an

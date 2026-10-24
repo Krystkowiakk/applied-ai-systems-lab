@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import sys
 import time
 from datetime import date
 from pathlib import Path
@@ -36,12 +38,19 @@ def add_parser(sub: Any) -> None:
     voice.add_argument("--effort", default=None)
     voice.add_argument("--record", type=Path, default=None, help="Save the live transcripts as a recording here.")
     voice.add_argument("--question", default="What do I need to know about line two before the morning meeting?")
-    voice.add_argument("--turn", default="morning-question", help="Turn id: asking again with the same id resumes it.")
+    voice.add_argument(
+        "--turn", default=None, help="Turn id (default: one per question); asking again with the same id resumes it."
+    )
     voice.add_argument("--out", type=Path, default=Path("runs/voice"))
 
 
 def run(args: argparse.Namespace) -> int:
+    if (args.model or args.effort) and not args.provider:
+        print("error: --model and --effort need --provider", file=sys.stderr)
+        return 2
     model = make_model(args.provider, args.model, effort=args.effort) if args.provider else None
+    if args.turn is None:  # a new question is a new turn; the same question asked again resumes it
+        args.turn = "ask-" + hashlib.sha256(args.question.encode()).hexdigest()[:12]
     return _notes(args, model) if args.action == "notes" else _ask(args, model)
 
 

@@ -295,6 +295,15 @@ def _serve_mcp(args: argparse.Namespace) -> int:
 
         anyio.run(serve_stdio, served)
         return 0
+    if args.host not in ("127.0.0.1", "::1", "localhost"):
+        # The labs' tools include one that runs code; over a network that needs authentication,
+        # which belongs in a proxy in front of this server, not in a flag.
+        print(
+            "error: the MCP server binds to this machine only (127.0.0.1, ::1 or localhost); "
+            "put an authenticating proxy in front of it to reach it from elsewhere",
+            file=sys.stderr,
+        )
+        return 2
     import uvicorn
 
     print(f"MCP server for '{args.lab}' at http://{args.host}:{args.port}/mcp", file=sys.stderr)

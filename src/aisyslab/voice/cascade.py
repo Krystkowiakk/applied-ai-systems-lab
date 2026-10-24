@@ -135,6 +135,8 @@ class VoiceCascade:
             def on_text(piece: str) -> None:
                 whole.append(piece)
                 for sentence in chunker.feed(piece):
+                    if "first_sentence" not in report.seconds:  # when the model wrote it, not when it was heard
+                        report.seconds["first_sentence"] = self.clock() - thinking
                     sentences.put(sentence)
                     ready.set()
 
@@ -144,31 +146,28 @@ class VoiceCascade:
                     self.model.complete_stream(system=self.system, messages=messages, tools=[], on_text=on_text)
                 else:
                     on_text(self.model.complete(system=self.system, messages=messages, tools=[]).text)
+                for sentence in chunker.flush():  # only a finished answer ends with an unfinished buffer
+                    sentences.put(sentence)
                 self.speaker.journal.save_answer(turn_id, "".join(whole).strip())
-            except Exception as exc:  # reported after the turn; the listener hears what was ready
+            except Exception as exc:  # reported after the turn; half a sentence is never spoken
                 failure.append(exc)
             finally:
-                for sentence in chunker.flush():
-                    sentences.put(sentence)
                 sentences.put(None)
                 ready.set()
 
         worker = threading.Thread(target=produce, daemon=True)
         worker.start()
+
+        def heard() -> None:  # the moment sound starts, after synthesis and before playback
+            report.seconds.setdefault("first_audio", self.clock() - start)
+
         if not ready.wait(self.budget.first_sentence_s):  # silence is worse than a filler
             report.filler = True
-            outcome = self.speaker.say(turn_id, self.filler)
-            if outcome == "played":
-                report.seconds["first_audio"] = self.clock() - start
-            report.spoken.append((self.filler, outcome))
+            report.spoken.append((self.filler, self.speaker.say(turn_id, self.filler, before_play=heard)))
         answer: list[str] = []
         try:
             while (next_up := sentences.get()) is not None:
-                if "first_sentence" not in report.seconds:
-                    report.seconds["first_sentence"] = self.clock() - thinking
-                outcome = self.speaker.say(turn_id, next_up)
-                if outcome == "played" and "first_audio" not in report.seconds:
-                    report.seconds["first_audio"] = self.clock() - start
+                outcome = self.speaker.say(turn_id, next_up, before_play=heard)
                 report.spoken.append((next_up, outcome))
                 answer.append(next_up)
         finally:

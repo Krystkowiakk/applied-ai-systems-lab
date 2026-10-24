@@ -1,7 +1,9 @@
 """A tamper-evident audit log: every entry signed and chained to the one before.
 
 Each entry carries the hash of the previous one and an HMAC of its own content, so changing,
-removing or reordering an entry breaks verification from that point on. Model inputs and outputs
+removing or reordering an entry breaks verification from that point on. Entries cut from the end
+leave a shorter chain that still verifies; ``head`` (the count and the last hash) kept somewhere
+else, and passed to ``verify``, catches that too. Model inputs and outputs
 are logged as hashes and lengths, not as text: the log proves what happened without becoming a
 second copy of the personal data.
 """
@@ -39,7 +41,15 @@ class AuditLog:
         self.entries.append(entry)
         return entry
 
-    def verify(self) -> tuple[bool, str]:
+    def head(self) -> tuple[int, str]:
+        """The number of entries and the last hash: store it outside the log (a ticket, another system)."""
+        return len(self.entries), self.entries[-1]["hash"] if self.entries else ""
+
+    def verify(self, head: tuple[int, str] | None = None) -> tuple[bool, str]:
+        if head is not None and (
+            len(self.entries) < head[0] or (head[0] and self.entries[head[0] - 1]["hash"] != head[1])
+        ):
+            return False, f"the log no longer holds the {head[0]} entries recorded elsewhere"
         prev = ""
         for index, entry in enumerate(self.entries):
             body = {k: v for k, v in entry.items() if k not in ("hash", "sig")}

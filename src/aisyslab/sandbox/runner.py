@@ -72,10 +72,16 @@ def _limits(cpu_s: int, memory_mb: int) -> None:  # pragma: no cover - runs in t
             resource.setrlimit(limit, (value, value))
 
 
-def _bounded(text: str, limit: int) -> str:
-    if len(text) <= limit:
-        return text
-    return text[: limit // 2] + f"\n... [{len(text) - limit} characters cut] ...\n" + text[-limit // 2 :]
+def _read_bounded(path: Path, limit: int) -> str:
+    """The start and the end of an output file, never the whole of a runaway one in memory."""
+    size = path.stat().st_size
+    with path.open("rb") as handle:
+        if size <= limit:
+            return handle.read().decode("utf-8", "replace")
+        head = handle.read(limit // 2).decode("utf-8", "replace")
+        handle.seek(size - limit // 2)
+        tail = handle.read().decode("utf-8", "replace")
+    return f"{head}\n... [{size - limit} bytes cut] ...\n{tail}"
 
 
 def run_python(
@@ -96,24 +102,25 @@ def run_python(
         (Path(tmp) / "main.py").write_text(PRELUDE + "\n" + code, encoding="utf-8")
         started = time.perf_counter()
         preexec = (lambda: _limits(int(timeout_s) + 1, memory_mb)) if os.name == "posix" else None
-        try:
-            done = subprocess.run(
-                [sys.executable, "-I", "-S", "main.py"],
-                cwd=tmp,
-                env={"PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"},
-                capture_output=True,
-                text=True,
-                timeout=timeout_s,
-                preexec_fn=preexec,  # limits are set in the child, before Python starts
-            )
-        except subprocess.TimeoutExpired as exc:
-            out = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
-            return SandboxResult(False, _bounded(out, max_output), "timed out", -9, True, time.perf_counter() - started)
+        # Output goes to files, not pipes: the child's file-size limit then caps it, and the parent
+        # reads back only a bounded part instead of holding everything the child printed.
+        out_path, err_path = Path(tmp) / ".stdout", Path(tmp) / ".stderr"
+        with out_path.open("wb") as out, err_path.open("wb") as err:
+            try:
+                done = subprocess.run(
+                    [sys.executable, "-I", "-S", "main.py"],
+                    cwd=tmp,
+                    env={"PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"},
+                    stdout=out,
+                    stderr=err,
+                    timeout=timeout_s,
+                    preexec_fn=preexec,  # limits are set in the child, before Python starts
+                )
+                exit_code, timed_out = done.returncode, False
+            except subprocess.TimeoutExpired:
+                exit_code, timed_out = -9, True
+        stdout = _read_bounded(out_path, max_output)
+        stderr = "timed out" if timed_out else _read_bounded(err_path, max_output // 2)
         return SandboxResult(
-            done.returncode == 0,
-            _bounded(done.stdout, max_output),
-            _bounded(done.stderr, max_output // 2),
-            done.returncode,
-            False,
-            time.perf_counter() - started,
+            exit_code == 0 and not timed_out, stdout, stderr, exit_code, timed_out, time.perf_counter() - started
         )
