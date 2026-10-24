@@ -14,11 +14,12 @@ aisyslab show supply-intake       # the scenario and its techniques
 aisyslab run supply-intake        # the baseline, streaming its trace
 aisyslab bench --seeds 0-4        # every baseline on five seeds
 aisyslab eval optimize            # prompt optimisation, offline stand-ins
+aisyslab eval users               # synthetic users try the procedures assistant, offline stand-ins
 aisyslab tenant demo              # a token for the service (shown once)
 aisyslab serve --demo             # the service and its web UI on :8000, without a model
 aisyslab voice notes              # the voice-note pipelines on recorded transcripts
 aisyslab card HP-07               # a work instruction card, drawn in code (not released: unchecked)
-pytest                            # 375 offline tests
+pytest                            # 390 offline tests
 ```
 
 ## With a model
@@ -44,6 +45,7 @@ aisyslab eval triage --provider openai --models gpt-5-mini,gpt-5 --judge        
 aisyslab eval batch --provider openai --model gpt-5-mini --effort low                     # twelve tickets per request, schema enforced
 aisyslab eval interview --provider openai --model gpt-5-mini --effort low                 # interview the planner, draft the prompt, measure it
 aisyslab eval tune --provider openai                                                      # fine-tune, resume, compare with prompting
+aisyslab eval users --provider openai --model gpt-5-mini --user-model gpt-5-nano --effort low --judge --max-cost 0.06   # personas in a chat, a release gate
 aisyslab search "ISO 4414 pneumatic safety"                                               # the research SearchAPI on the real web
 aisyslab voice notes --speech openai --provider openai --model gpt-5-mini                 # speak, transcribe and file ten voice notes
 aisyslab voice ask --speech openai --provider openai --model gpt-5-mini                   # ask by voice, hear the answer, with stage timings

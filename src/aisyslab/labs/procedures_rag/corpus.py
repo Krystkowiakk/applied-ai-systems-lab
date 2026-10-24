@@ -12,6 +12,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from datetime import date, timedelta
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -33,8 +34,7 @@ class Question:
     stale: str | None = None  # the value a superseded source would give
 
 
-def build(seed: int) -> tuple[list[Section], list[Question]]:
-    r = random.Random(seed * 31 + 7)
+def _draw(r: random.Random) -> dict[str, Any]:
     t16 = r.randrange(190, 235, 5)
     t12 = r.randrange(80, 115, 5)
     tss = r.randrange(55, 76)
@@ -47,6 +47,43 @@ def build(seed: int) -> tuple[list[Section], list[Question]]:
     mentor_days = r.choice([5, 10, 15])
     kit_cost, coupling_kit = r.randrange(140, 260, 5), r.randrange(60, 120, 5)
     calibrated = date(2026, r.randint(1, 9), r.randint(1, 28))
+    return {
+        "t16": t16,
+        "t12": t12,
+        "tss": tss,
+        "old": old,
+        "weeks": weeks,
+        "old_weeks": old_weeks,
+        "recheck": recheck,
+        "wait_min": wait_min,
+        "permit_hours": permit_hours,
+        "fire_watch": fire_watch,
+        "cal_days": cal_days,
+        "mentor_days": mentor_days,
+        "kit_cost": kit_cost,
+        "coupling_kit": coupling_kit,
+        "calibrated": calibrated,
+        "last_day": calibrated + timedelta(days=cal_days),
+    }
+
+
+def facts(seed: int) -> dict[str, Any]:
+    """The values the procedures state for a seed, for checks outside the lab (synthetic users)."""
+    return _draw(random.Random(seed * 31 + 7))
+
+
+def build(seed: int) -> tuple[list[Section], list[Question]]:
+    r = random.Random(seed * 31 + 7)
+    f = _draw(r)
+    t16, t12, tss, old = f["t16"], f["t12"], f["tss"], f["old"]
+    weeks, old_weeks, recheck, wait_min = f["weeks"], f["old_weeks"], f["recheck"], f["wait_min"]
+    permit_hours, fire_watch, cal_days = f["permit_hours"], f["fire_watch"], f["cal_days"]
+    mentor_days, kit_cost, coupling_kit, calibrated = (
+        f["mentor_days"],
+        f["kit_cost"],
+        f["coupling_kit"],
+        f["calibrated"],
+    )
 
     def manual(edition: str, status: str, v: dict[str, int], w: int) -> list[Section]:
         doc = f"maintenance-{edition}"

@@ -477,3 +477,6 @@ never accepted. This is the lab where the model earns its place.
 
 **Agent.** `list_questions`, `search_handbook` (keywords and question separately), `read_section`,
 `add_days`, `calculate`, `submit_answers`.
+
+**Also used by** the release test with synthetic users ([evals](evals.md#synthetic-users-before-a-release)):
+the same procedures, generated for a seed, back a chat assistant that four personas talk to before it ships.

@@ -74,8 +74,8 @@ What failed on the way changed the code, and each lab's page says how:
 The modules without a lab were run live too, and their pages say what happened: a search on
 the real web, ten voice notes spoken and transcribed and a voice cascade timed stage by stage, two
 instruction cards (the first check let letter-like marks through), triage in batches and from an
-interview, and a fine-tuning job the provider refused. All the live runs on 24 October cost about
-$0.52. Produce your own results, with your key or a local model:
+interview, synthetic users trying the procedures assistant before release, and a fine-tuning job
+the provider refused. All the live runs on 24 October cost about $0.55. Produce your own results, with your key or a local model:
 
 ```bash
 aisyslab bench --solvers baseline,agent --provider openai --model gpt-5-mini --seeds 0-4

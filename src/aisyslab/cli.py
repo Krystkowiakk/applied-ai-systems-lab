@@ -56,9 +56,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     trace.add_argument("path", type=Path)
 
     ev = sub.add_parser(
-        "eval", help="Evaluate ticket triage: score, optimise, judge, batch, interview the owner, fine-tune."
+        "eval",
+        help="Evaluate ticket triage (score, optimise, judge, batch, interview the owner, fine-tune), "
+        "or let synthetic users try the procedures assistant before release.",
     )
-    ev.add_argument("what", choices=["triage", "optimize", "judge", "batch", "interview", "tune"])
+    ev.add_argument("what", choices=["triage", "optimize", "judge", "batch", "interview", "tune", "users"])
     ev.add_argument("--seed", type=int, default=0, help="Dataset seed.")
     ev.add_argument("--models", default=None, help="Comma-separated model ids to compare (with --provider).")
     ev.add_argument("--optimizer-model", default=None, help="Stronger model that rewrites the prompt.")
@@ -76,6 +78,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     ev.add_argument("--epochs", type=int, default=3)
     ev.add_argument("--wait", type=float, default=1800.0, help="Seconds to wait for a tuning job; a rerun resumes it.")
+    ev.add_argument("--user-model", default=None, help="Model that plays the synthetic users (default: --model).")
+    ev.add_argument(
+        "--max-cost", type=float, default=0.10, help="Spend cap in USD for a users run, checked before every call."
+    )
     ev.add_argument("--out", type=Path, default=Path("runs/evals"))
     ev.add_argument("--provider", choices=PROVIDERS, default=None, help="Without it, offline stand-ins are used.")
     ev.add_argument("--model", default=None)

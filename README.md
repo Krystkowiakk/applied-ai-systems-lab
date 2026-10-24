@@ -26,7 +26,7 @@ LLM agent. Side by side they show where a model earns its place and where code d
 | Safety | prompt injection handled by design, human approval, a restricted shell, anonymisation, moderation, an audit log | [`maintenance-portal`](docs/labs.md#maintenance-portal), [`service-repair`](docs/labs.md#service-repair), [`quality-claims`](docs/labs.md#quality-claims) |
 | Voice and images | speech-to-text grounded in the plant's vocabulary, a voice cascade, vision checked in code, generated illustrations | [voice](docs/voice.md), [visual](docs/visual.md), [`supply-intake`](docs/labs.md#supply-intake) |
 | MCP | the labs as MCP servers, an MCP host, tool discovery | [MCP](docs/mcp.md) |
-| Evaluation | eval sets, a calibrated judge, prompt optimisation, batches under a schema, fine-tuning against prompting | [ticket triage](docs/evals.md) |
+| Evaluation | eval sets, a calibrated judge, prompt optimisation, batches under a schema, fine-tuning against prompting, synthetic users before a release | [ticket triage](docs/evals.md), [procedures assistant](docs/evals.md#synthetic-users-before-a-release) |
 | Production | a durable job runtime, a model gateway with fallback, streaming, tenants, cron, a web UI | [maintenance request service](docs/runtime.md) |
 
 Every technique, with links into the code: [docs/techniques.md](docs/techniques.md).
@@ -63,7 +63,7 @@ pip install -e ".[dev]"
 aisyslab list                  # the fifteen labs
 aisyslab run supply-intake     # the plain-code solver, no API key needed
 aisyslab bench --seeds 0-4     # every plain-code solver on five seeds
-pytest                         # 375 offline tests
+pytest                         # 390 offline tests
 ```
 
 With a model: install `.[all]`, set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` (or use a local model)

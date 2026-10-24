@@ -1,4 +1,5 @@
-"""``aisyslab eval``: score the triage prompt, optimise it, or calibrate the judge."""
+"""``aisyslab eval``: score the triage prompt, optimise it, calibrate the judge, or let synthetic users try
+the procedures assistant before release."""
 
 from __future__ import annotations
 
@@ -25,11 +26,14 @@ def _model(args: argparse.Namespace, model_id: str | None) -> ChatModel:
 
 def run(args: argparse.Namespace) -> int:
     offline = args.provider is None
-    if offline:
+    if offline and args.what != "users":
         print(f"[{OFFLINE}]")
     tickets = generate_tickets(args.seed)
     args.out.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    if args.what == "users":
+        return _users(args, offline, stamp)
 
     if args.what in ("batch", "interview", "tune"):
         return _more(args, tickets, offline, stamp)
@@ -87,6 +91,54 @@ def run(args: argparse.Namespace) -> int:
         encoding="utf-8",
     )
     return 0
+
+
+def _users(args: argparse.Namespace, offline: bool, stamp: str) -> int:
+    """Synthetic users try the procedures assistant; the gate decides whether it ships."""
+    from .users import (
+        Capped,
+        ExtractiveAssistant,
+        Ledger,
+        ModelUsers,
+        ProceduresAssistant,
+        ReplyJudge,
+        ScriptedUsers,
+        Users,
+        personas,
+        run_users,
+    )
+
+    ledger: Ledger | None = None
+    judge: ReplyJudge | None = None
+    if offline:
+        print("[offline stand-ins (scripted users, an extractive assistant), not language models]")
+        assistant: ExtractiveAssistant | ProceduresAssistant = ExtractiveAssistant(args.seed)
+        users: Users = ScriptedUsers()
+    else:
+        ledger = Ledger(args.max_cost)
+        model = Capped(_model(args, args.model), ledger)
+        user_id = args.user_model or args.model
+        users = ModelUsers(
+            Capped(make_model(args.provider, user_id, base_url=args.base_url, effort=_effort(args, user_id)), ledger)
+        )
+        assistant = ProceduresAssistant(model, args.seed)
+        judge = ReplyJudge(model, assistant.sections) if args.judge else None
+        print(f"Spend cap: ${args.max_cost:.2f}, checked before every model call")
+    report = run_users(assistant, users, personas(args.seed), judge=judge)
+    print(report.to_markdown())
+    released, failures = report.release()
+    counts = ", ".join(f"{kind} {ok}/{total}" for kind, (ok, total) in report.by_kind().items())
+    print(f"\nChecks passed: {counts}")
+    print("Release: " + ("yes" if released else "blocked"))
+    for failure in failures:
+        print(f"  - {failure}")
+    for role, used in report.usage.items():
+        print(f"{role}: {used.input_tokens:,} tokens in, {used.output_tokens:,} out")
+    if ledger is not None:
+        print(f"Spent about ${ledger.spent:.4f} of the ${ledger.cap:.2f} cap (cached input priced as fresh)")
+    saved = report.as_dict() | {"spent_usd": round(ledger.spent, 4) if ledger else 0.0}
+    (args.out / f"users-{stamp}.json").write_text(json.dumps(saved, indent=2, ensure_ascii=False), encoding="utf-8")
+    return 0 if released else 1
 
 
 def _effort(args: argparse.Namespace, model_id: str | None) -> str | None:

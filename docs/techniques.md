@@ -45,6 +45,7 @@ model, the linked page says what happened, including what failed.
 | [MCP servers and host](mcp.md) | Use the labs' tools from any MCP client, and MCP servers from the agent | servers over stdio and HTTP, a host, tool discovery |
 | [Agent toolkit](architecture.md) | The loop under every example | typed tools, budgets, retries, providers, traces |
 | [Maintenance request service](runtime.md) | The team's requests as durable jobs, with a web UI | a model gateway, a durable runtime, streaming, tenants, cron |
+| [Synthetic users before a release](evals.md#synthetic-users-before-a-release) | Should the procedures assistant ship? Four personas talk to it first | personas played by a model, checks in code, a release gate, a spend cap |
 
 ## Model access and the agent loop
 
@@ -164,6 +165,9 @@ model, the linked page says what happened, including what failed.
 | Error analysis: every item's output saved and read before a score is trusted | [evals](evals.md#a-live-run-what-the-numbers-hid) |
 | Prompt optimisation checked on a holdout; prompts versioned by hash | [evals](evals.md) |
 | An agent's instructions drafted by a meta-prompt from an interview with the process owner | [evals](evals.md#a-prompt-drafted-from-an-interview-with-the-process-owner), [`evals/interview.py`](../src/aisyslab/evals/interview.py) |
+| Synthetic users: a model plays personas in multi-turn chats with an assistant, one goal per message | [evals](evals.md#synthetic-users-before-a-release), [`evals/users.py`](../src/aisyslab/evals/users.py) |
+| A release gate decided in code: figures with citations, no superseded values, an honest "not covered", the user's language, safety rules under pressure; a judge's grades shown but not counted until it is calibrated | [evals](evals.md#synthetic-users-before-a-release) |
+| A spend cap in code, shared by every model in a paid run and checked before every call | [`evals/users.py`](../src/aisyslab/evals/users.py) |
 | Classic ML instead of a model where the answer is in labelled numbers | [`quality-gate`](labs.md#quality-gate) |
 | Fine-tuning compared with prompting on the same holdout, with cost per thousand items; training data validated before paying, the job journaled | [evals](evals.md#fine-tuning-compared-with-prompting), [`evals/finetune.py`](../src/aisyslab/evals/finetune.py) |
 | Dataset hygiene: every item unique, nothing from the holdout in any training file | [evals](evals.md#the-dataset) |
